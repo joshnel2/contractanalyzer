@@ -4,20 +4,20 @@
     {
       "parameters": {
         "formTitle": "Attorney Commission Calculator",
-        "formDescription": "Upload your Case Data and Rules Sheet CSVs to calculate commissions using AI",
+        "formDescription": "Paste your Case Data and Rules Sheet CSVs below",
         "formFields": {
           "values": [
             {
               "fieldLabel": "Case Data CSV",
-              "fieldType": "text",
+              "fieldType": "textarea",
               "requiredField": true,
-              "placeholder": "Paste your case data CSV content here (matter,date,total collected,user,originator)"
+              "placeholder": "matter,date,total collected,user,originator\nCase-001,2024-01-15,10000,John Smith,John Smith"
             },
             {
-              "fieldLabel": "Rules Sheet CSV", 
-              "fieldType": "text",
+              "fieldLabel": "Rules Sheet CSV",
+              "fieldType": "textarea",
               "requiredField": true,
-              "placeholder": "Paste your rules sheet CSV content here (attorney name,user percentage,own origination other work percentage)"
+              "placeholder": "attorney name,user percentage,own origination other work percentage\nJohn Smith,30%,10%"
             }
           ]
         },
@@ -26,57 +26,50 @@
       "id": "form-trigger",
       "name": "Upload Form",
       "type": "n8n-nodes-base.formTrigger",
-      "typeVersion": 2,
+      "typeVersion": 2.1,
       "position": [200, 300],
       "webhookId": "commission-form"
     },
     {
       "parameters": {
-        "resource": "chat",
-        "model": "={{ $env.AZURE_OPENAI_DEPLOYMENT }}",
+        "modelId": { "__rl": true, "value": "gpt-4o", "mode": "list" },
         "messages": {
           "values": [
             {
-              "role": "system",
-              "content": "You are a precise financial calculator. Your ONLY job is to calculate attorney commissions from CSV data.\n\n## YOUR CALCULATION RULES:\n\n### AGENT 1 - USER CALCULATION:\n1. Find the 'user' from Case Data in the Rules Sheet\n2. Get their 'user percentage'\n3. Calculate: User Pay = Total Collected × User Percentage\n\n### AGENT 2 - ORIGINATOR CALCULATION:\n1. Compare 'originator' with 'user'\n2. IF SAME PERSON: Leave originator_percentage and originator_pay completely EMPTY (blank)\n3. IF DIFFERENT PEOPLE:\n   - Find the originator's 'own origination other work percentage' in Rules Sheet\n   - Calculate: Originator Pay = User Pay × Own Origination Percentage\n   - CRITICAL: Multiply against USER PAY, NOT total collected!\n\n## OUTPUT FORMAT:\nReturn ONLY a raw CSV with these exact headers:\nmatter,date,user,originator,total collected,user percentage,user pay,originator percentage,originator pay\n\n- Format percentages as decimals (e.g., 0.30 for 30%)\n- Format money as plain numbers (e.g., 3000.00)\n- Leave originator fields EMPTY when user equals originator\n- NO explanation, NO markdown, ONLY the CSV text"
+              "content": "You are a CSV calculator. You receive CSV data and return ONLY CSV output. No explanations. No markdown. No code blocks. Just raw CSV text starting with the header row."
             },
             {
-              "role": "user", 
-              "content": "=Calculate commissions for this data. Take your time and be accurate.\n\n## CASE DATA CSV:\n{{ $json['Case Data CSV'] }}\n\n## RULES SHEET CSV:\n{{ $json['Rules Sheet CSV'] }}\n\nReturn ONLY the output CSV, nothing else."
+              "type": "user",
+              "content": "=Calculate attorney commissions from this data:\n\nCASE DATA:\n{{ $json['Case Data CSV'] }}\n\nRULES:\n{{ $json['Rules Sheet CSV'] }}\n\nCALCULATION RULES:\n1. User Pay = total collected × user percentage (from rules where attorney name matches user)\n2. If user and originator are THE SAME PERSON: leave originator percentage and originator pay BLANK\n3. If user and originator are DIFFERENT: Originator Pay = User Pay × originator's own origination other work percentage\n\nReturn ONLY this CSV format (no markdown, no ```, no explanation):\nmatter,date,user,originator,total collected,user percentage,user pay,originator percentage,originator pay\n\nStart output immediately with the header row:"
             }
           ]
         },
         "options": {
-          "temperature": 0,
-          "maxTokens": 16000
+          "temperature": 0
         }
       },
-      "id": "azure-openai",
-      "name": "Azure OpenAI - Calculate",
-      "type": "@n8n/n8n-nodes-langchain.lmChatAzureOpenAi",
-      "typeVersion": 1,
+      "id": "openai-calc",
+      "name": "Calculate Commissions",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
       "position": [460, 300],
       "credentials": {
-        "azureOpenAiApi": {
-          "id": "azure-openai-creds",
-          "name": "Azure OpenAI"
+        "openAiApi": {
+          "id": "your-credential-id",
+          "name": "OpenAI"
         }
       }
     },
     {
       "parameters": {
         "respondWith": "text",
-        "responseBody": "={{ $json.text }}",
+        "responseBody": "={{ $json.text.replace(/```csv\\n?/g, '').replace(/```\\n?/g, '').replace(/^\\s+/, '') }}",
         "options": {
           "responseHeaders": {
             "entries": [
               {
                 "name": "Content-Type",
-                "value": "text/csv"
-              },
-              {
-                "name": "Content-Disposition", 
-                "value": "attachment; filename=\"commission_results.csv\""
+                "value": "text/csv; charset=utf-8"
               }
             ]
           }
@@ -85,38 +78,20 @@
       "id": "respond",
       "name": "Return CSV",
       "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1,
+      "typeVersion": 1.1,
       "position": [720, 300]
     }
   ],
   "connections": {
     "Upload Form": {
-      "main": [
-        [
-          {
-            "node": "Azure OpenAI - Calculate",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "Calculate Commissions", "type": "main", "index": 0 }]]
     },
-    "Azure OpenAI - Calculate": {
-      "main": [
-        [
-          {
-            "node": "Return CSV",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "Calculate Commissions": {
+      "main": [[{ "node": "Return CSV", "type": "main", "index": 0 }]]
     }
   },
   "active": false,
-  "settings": {
-    "executionOrder": "v1"
-  },
+  "settings": { "executionOrder": "v1" },
   "tags": [],
   "pinData": {}
 }
