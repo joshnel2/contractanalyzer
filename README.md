@@ -1,236 +1,132 @@
 # Attorney Commission Calculator
 
-A web application that calculates attorney commissions using Azure AI Foundry. Upload your case data and rules sheets, and the AI will carefully process each row to calculate commissions.
+**No-code AI workflow** using n8n + Azure OpenAI to calculate attorney commissions.
 
-## Features
+## How It Works
 
-- 📊 **Web Interface** - Drag & drop CSV upload
-- 🤖 **Azure AI Powered** - Uses Azure OpenAI for accurate calculations
-- 📦 **Batch Processing** - Handles large datasets by processing in batches
-- ⬇️ **CSV Export** - Download results as CSV
-- ☁️ **Azure Ready** - Configured for Azure App Service deployment
+1. **Upload Form** - Paste your CSV data
+2. **Azure OpenAI** - AI calculates all commissions
+3. **Download** - Get results as CSV
+
+### Calculation Rules (AI Follows These)
+
+| Agent | Rule |
+|-------|------|
+| **Agent 1 (User)** | `User Pay = Total Collected × User Percentage` |
+| **Agent 2 (Originator)** | If different person: `Originator Pay = User Pay × Own Origination %` |
+| **Same Person** | Originator fields left blank |
 
 ---
 
-## 🚀 Deploy to Azure
+## 🚀 Deploy
 
-### Prerequisites
-
-1. [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) installed
-2. Azure subscription
-3. Azure OpenAI resource with a deployed model
-
-### Option 1: Quick Deploy Script
+### Step 1: Start n8n
 
 ```bash
-# Clone the repo
-git clone <your-repo-url>
-cd <repo-name>
+cp .env.example .env
+# Edit .env with your Azure OpenAI credentials
 
-# Run the deploy script
-./deploy-azure.sh
+docker-compose up -d
 ```
 
-The script will prompt you for:
-- Azure OpenAI Endpoint
-- Azure OpenAI API Key
-- Azure OpenAI Deployment Name
+### Step 2: Open n8n
 
-### Option 2: Manual Azure CLI Deployment
+Go to **http://localhost:5678**
 
-```bash
-# 1. Login to Azure
-az login
+Login: `admin` / `changeme` (or what you set in .env)
 
-# 2. Create resource group
-az group create --name commission-calc-rg --location eastus
+### Step 3: Set Up Azure OpenAI Credentials
 
-# 3. Create App Service plan
-az appservice plan create \
-    --name commission-calc-plan \
-    --resource-group commission-calc-rg \
-    --sku B1 \
-    --is-linux
+1. Click **Settings** (gear icon) → **Credentials**
+2. Click **Add Credential** → Search **Azure OpenAI**
+3. Fill in:
+   - **API Key**: Your Azure OpenAI API key
+   - **Endpoint**: `https://your-resource.openai.azure.com/`
+   - **API Version**: `2024-02-15-preview`
+4. Click **Save**
 
-# 4. Create web app
-az webapp create \
-    --resource-group commission-calc-rg \
-    --plan commission-calc-plan \
-    --name your-app-name \
-    --runtime "PYTHON:3.11"
+### Step 4: Import the Workflow
 
-# 5. Configure startup command
-az webapp config set \
-    --resource-group commission-calc-rg \
-    --name your-app-name \
-    --startup-file "gunicorn --bind=0.0.0.0:8000 --timeout=600 --workers=2 app:app"
+1. Go to **Workflows** → **Import from File**
+2. Select `workflows/attorney-commission-calculator.json`
+3. Open the **Azure OpenAI - Calculate** node
+4. Select your Azure OpenAI credentials
+5. Set the **Model** to your deployment name (e.g., `gpt-4o`)
+6. **Save** the workflow
 
-# 6. Set environment variables
-az webapp config appsettings set \
-    --resource-group commission-calc-rg \
-    --name your-app-name \
-    --settings \
-    AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com/" \
-    AZURE_OPENAI_API_KEY="your-api-key" \
-    AZURE_OPENAI_DEPLOYMENT="your-deployment-name" \
-    AZURE_OPENAI_API_VERSION="2024-02-15-preview"
+### Step 5: Activate & Use
 
-# 7. Deploy
-az webapp up \
-    --resource-group commission-calc-rg \
-    --name your-app-name \
-    --runtime "PYTHON:3.11"
-```
-
-### Option 3: GitHub Actions CI/CD
-
-1. Push this repo to GitHub
-2. In Azure Portal, download the **Publish Profile** from your App Service
-3. Add GitHub secrets:
-   - `AZURE_WEBAPP_NAME`: Your app service name
-   - `AZURE_WEBAPP_PUBLISH_PROFILE`: Contents of the publish profile
-4. Push to `main` branch to trigger deployment
+1. Toggle **Active** (top-right) to ON
+2. Click **Execute Workflow** or use the form URL
+3. Paste your CSVs and submit!
 
 ---
 
-## ⚙️ Azure OpenAI Setup
+## 📊 Input Format
 
-### 1. Create Azure OpenAI Resource
-
-1. Go to [Azure Portal](https://portal.azure.com)
-2. Search for "Azure OpenAI"
-3. Create new resource
-4. Wait for deployment to complete
-
-### 2. Deploy a Model
-
-1. Go to [Azure AI Foundry](https://ai.azure.com) or Azure OpenAI Studio
-2. Select your resource
-3. Go to **Deployments** → **Create new deployment**
-4. Choose a model (recommended: `gpt-4o` or `gpt-4`)
-5. Give it a deployment name (e.g., `gpt-4o-deploy`)
-
-### 3. Get Your Credentials
-
-From Azure Portal → Your OpenAI Resource → **Keys and Endpoint**:
-
-| Setting | Where to Find |
-|---------|---------------|
-| `AZURE_OPENAI_ENDPOINT` | Endpoint URL |
-| `AZURE_OPENAI_API_KEY` | KEY 1 or KEY 2 |
-| `AZURE_OPENAI_DEPLOYMENT` | Your deployment name |
-
----
-
-## 📊 How It Works
-
-### Input Files
-
-**Case Data CSV:**
-```csv
+### Case Data CSV
+```
 matter,date,total collected,user,originator
 Case-001,2024-01-15,10000.00,John Smith,John Smith
 Case-002,2024-01-20,25000.00,Jane Doe,John Smith
+Case-003,2024-02-01,15000.00,Bob Johnson,Jane Doe
 ```
 
-**Rules Sheet CSV:**
-```csv
+### Rules Sheet CSV
+```
 attorney name,user percentage,own origination other work percentage
 John Smith,30%,10%
 Jane Doe,25%,15%
+Bob Johnson,35%,12%
 ```
 
-### Calculation Logic
+---
 
-**Agent 1 - User Calculation:**
+## ☁️ Deploy to Azure
+
+### Option 1: Azure Container Instances
+
+```bash
+az container create \
+  --resource-group myResourceGroup \
+  --name n8n-commission-calc \
+  --image n8nio/n8n \
+  --ports 5678 \
+  --environment-variables \
+    N8N_BASIC_AUTH_ACTIVE=true \
+    N8N_BASIC_AUTH_USER=admin \
+    N8N_BASIC_AUTH_PASSWORD=your-password \
+  --dns-name-label n8n-commission-calc
 ```
-User Pay = Total Collected × User Percentage
+
+### Option 2: Azure App Service (Container)
+
+1. Create a Container App Service
+2. Use image: `n8nio/n8n`
+3. Set environment variables from `.env.example`
+4. Import the workflow after deployment
+
+---
+
+## 📁 Files
+
 ```
-
-**Agent 2 - Originator Calculation:**
-- If `user == originator`: Leave originator fields **blank**
-- If `user != originator`:
-  ```
-  Originator Pay = User Pay × Own Origination %
-  ```
-  ⚠️ **Critical:** Multiplies against User Pay, NOT total collected
-
-### Output
-
-```csv
-matter,date,user,originator,total collected,user percentage,user pay,originator percentage,originator pay
-Case-001,2024-01-15,John Smith,John Smith,10000.00,30.0%,3000.00,,
-Case-002,2024-01-20,Jane Doe,John Smith,25000.00,25.0%,6250.00,10.0%,625.00
+.
+├── docker-compose.yml                      # Run n8n locally
+├── .env.example                            # Configuration template
+├── workflows/
+│   └── attorney-commission-calculator.json # The AI workflow
+└── README.md
 ```
 
 ---
 
 ## 🔧 Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `AZURE_OPENAI_ENDPOINT` | ✅ | `https://your-resource.openai.azure.com/` |
-| `AZURE_OPENAI_API_KEY` | ✅ | API key from Azure Portal |
-| `AZURE_OPENAI_DEPLOYMENT` | ✅ | Your model deployment name |
-| `AZURE_OPENAI_API_VERSION` | ❌ | Default: `2024-02-15-preview` |
-| `SECRET_KEY` | ❌ | Flask secret key |
-
----
-
-## 🏗️ Project Structure
-
-```
-.
-├── app.py                      # Flask application
-├── templates/
-│   └── index.html              # Web interface
-├── requirements.txt            # Python dependencies
-├── startup.txt                 # Azure startup command
-├── .deployment                 # Azure deployment config
-├── deploy-azure.sh             # Deployment script
-├── Dockerfile                  # Docker build (optional)
-├── docker-compose.yml          # Docker Compose (optional)
-├── .github/
-│   └── workflows/
-│       └── azure-deploy.yml    # GitHub Actions CI/CD
-└── README.md
-```
-
----
-
-## 🔍 Monitoring & Logs
-
-```bash
-# View live logs
-az webapp log tail --resource-group commission-calc-rg --name your-app-name
-
-# View deployment logs
-az webapp log deployment show --resource-group commission-calc-rg --name your-app-name
-
-# Check app health
-curl https://your-app-name.azurewebsites.net/health
-```
-
----
-
-## 💻 Local Development
-
-```bash
-# Create .env file
-cp .env.example .env
-# Edit .env with your Azure credentials
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run locally
-python app.py
-```
-
-Open http://localhost:8000
-
----
-
-## 📝 License
-
-MIT
+| Variable | Description |
+|----------|-------------|
+| `AZURE_OPENAI_ENDPOINT` | `https://your-resource.openai.azure.com/` |
+| `AZURE_OPENAI_API_KEY` | Your API key |
+| `AZURE_OPENAI_DEPLOYMENT` | Model deployment name (e.g., `gpt-4o`) |
+| `N8N_USER` | n8n login username |
+| `N8N_PASSWORD` | n8n login password |
