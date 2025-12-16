@@ -1,0 +1,133 @@
+{
+  "name": "Attorney Commission Calculator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "calculate-commissions",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000001",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "calc-commissions"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// ============================================\n// ATTORNEY COMMISSION CALCULATOR WORKFLOW\n// ============================================\n// Input: case_data_csv and rules_sheet_csv as base64 or raw text\n// Output: Processed CSV with commission calculations\n\nconst inputData = items[0].json;\n\n// Parse CSV helper function\nfunction parseCSV(csvText) {\n  const lines = csvText.trim().split('\\n');\n  const headers = lines[0].split(',').map(h => h.trim().toLowerCase());\n  const rows = [];\n  \n  for (let i = 1; i < lines.length; i++) {\n    const values = lines[i].split(',').map(v => v.trim());\n    const row = {};\n    headers.forEach((header, index) => {\n      row[header] = values[index] || '';\n    });\n    rows.push(row);\n  }\n  return rows;\n}\n\n// Parse percentages (handles both \"30%\" and \"0.30\" formats)\nfunction parsePercentage(value) {\n  if (!value || value === '') return 0;\n  const str = value.toString().trim();\n  if (str.includes('%')) {\n    return parseFloat(str.replace('%', '')) / 100;\n  }\n  const num = parseFloat(str);\n  // If value > 1, assume it's a percentage (e.g., 30 means 30%)\n  return num > 1 ? num / 100 : num;\n}\n\n// Parse currency (handles \"$1,234.56\" format)\nfunction parseCurrency(value) {\n  if (!value || value === '') return 0;\n  return parseFloat(value.toString().replace(/[$,]/g, '')) || 0;\n}\n\n// Normalize name for comparison\nfunction normalizeName(name) {\n  if (!name) return '';\n  return name.toString().toLowerCase().trim();\n}\n\n// Get CSV data from input\nconst caseDataCSV = inputData.case_data_csv || inputData.caseData || '';\nconst rulesSheetCSV = inputData.rules_sheet_csv || inputData.rulesSheet || '';\n\nif (!caseDataCSV || !rulesSheetCSV) {\n  throw new Error('Missing required CSV data. Please provide case_data_csv and rules_sheet_csv');\n}\n\n// Parse both CSVs\nconst caseData = parseCSV(caseDataCSV);\nconst rulesSheet = parseCSV(rulesSheetCSV);\n\n// Create lookup map for rules by attorney name\nconst rulesLookup = {};\nrulesSheet.forEach(rule => {\n  const name = normalizeName(rule['attorney name'] || rule['attorney_name'] || rule['name']);\n  rulesLookup[name] = {\n    userPercentage: parsePercentage(rule['user percentage'] || rule['user_percentage']),\n    originationPercentage: parsePercentage(rule['own origination other work percentage'] || rule['own_origination_other_work_percentage'] || rule['origination_percentage'])\n  };\n});\n\n// Process each case\nconst results = [];\n\ncaseData.forEach(caseRow => {\n  const matter = caseRow['matter'] || '';\n  const date = caseRow['date'] || '';\n  const totalCollected = parseCurrency(caseRow['total collected'] || caseRow['total_collected']);\n  const userName = caseRow['user'] || '';\n  const originatorName = caseRow['originator'] || '';\n  \n  // AGENT 1: User Calculation\n  const userNameNormalized = normalizeName(userName);\n  const userRule = rulesLookup[userNameNormalized] || { userPercentage: 0, originationPercentage: 0 };\n  const userPercentage = userRule.userPercentage;\n  const userPay = totalCollected * userPercentage;\n  \n  // AGENT 2: Originator Calculation\n  const originatorNameNormalized = normalizeName(originatorName);\n  const isSamePerson = userNameNormalized === originatorNameNormalized;\n  \n  let originatorPercentage = '';\n  let originatorPay = '';\n  \n  if (!isSamePerson && originatorName) {\n    // Different people - calculate originator pay from USER PAY (not total collected)\n    const originatorRule = rulesLookup[originatorNameNormalized] || { originationPercentage: 0 };\n    originatorPercentage = originatorRule.originationPercentage;\n    // CRITICAL: Multiply against User Pay, NOT total collected\n    originatorPay = userPay * originatorPercentage;\n    \n    // Format for output\n    originatorPercentage = (originatorPercentage * 100).toFixed(1) + '%';\n    originatorPay = originatorPay.toFixed(2);\n  }\n  // If same person, leave originator fields blank (already empty strings)\n  \n  results.push({\n    matter: matter,\n    date: date,\n    user: userName,\n    originator: originatorName,\n    'total collected': totalCollected.toFixed(2),\n    'user percentage': (userPercentage * 100).toFixed(1) + '%',\n    'user pay': userPay.toFixed(2),\n    'originator percentage': originatorPercentage,\n    'originator pay': originatorPay\n  });\n});\n\n// Generate output CSV\nconst headers = ['matter', 'date', 'user', 'originator', 'total collected', 'user percentage', 'user pay', 'originator percentage', 'originator pay'];\nlet csvOutput = headers.join(',') + '\\n';\n\nresults.forEach(row => {\n  const values = headers.map(h => {\n    const val = row[h];\n    // Quote values that contain commas\n    if (val && val.toString().includes(',')) {\n      return '\"' + val + '\"';\n    }\n    return val;\n  });\n  csvOutput += values.join(',') + '\\n';\n});\n\nreturn [{\n  json: {\n    csv_output: csvOutput,\n    processed_rows: results.length,\n    results: results\n  }\n}];"
+      },
+      "id": "a1b2c3d4-0002-0002-0002-000000000002",
+      "name": "Process CSV Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0003-0003-0003-000000000003",
+      "name": "Respond with CSV",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "calculate-commissions-files",
+        "responseMode": "lastNode",
+        "options": {
+          "rawBody": false
+        }
+      },
+      "id": "a1b2c3d4-0004-0004-0004-000000000004",
+      "name": "File Upload Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 520],
+      "webhookId": "calc-commissions-files"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// ============================================\n// FILE UPLOAD VERSION - ATTORNEY COMMISSION CALCULATOR\n// ============================================\n// Handles multipart form data with file uploads\n\nconst inputData = items[0].json;\n\n// Parse CSV helper function\nfunction parseCSV(csvText) {\n  const lines = csvText.trim().split('\\n');\n  const headers = lines[0].split(',').map(h => h.trim().toLowerCase());\n  const rows = [];\n  \n  for (let i = 1; i < lines.length; i++) {\n    const values = lines[i].split(',').map(v => v.trim());\n    const row = {};\n    headers.forEach((header, index) => {\n      row[header] = values[index] || '';\n    });\n    rows.push(row);\n  }\n  return rows;\n}\n\n// Parse percentages\nfunction parsePercentage(value) {\n  if (!value || value === '') return 0;\n  const str = value.toString().trim();\n  if (str.includes('%')) {\n    return parseFloat(str.replace('%', '')) / 100;\n  }\n  const num = parseFloat(str);\n  return num > 1 ? num / 100 : num;\n}\n\n// Parse currency\nfunction parseCurrency(value) {\n  if (!value || value === '') return 0;\n  return parseFloat(value.toString().replace(/[$,]/g, '')) || 0;\n}\n\n// Normalize name\nfunction normalizeName(name) {\n  if (!name) return '';\n  return name.toString().toLowerCase().trim();\n}\n\n// Extract CSV content from various input formats\nlet caseDataCSV = '';\nlet rulesSheetCSV = '';\n\n// Check for direct text input\nif (inputData.case_data_csv) {\n  caseDataCSV = inputData.case_data_csv;\n}\nif (inputData.rules_sheet_csv) {\n  rulesSheetCSV = inputData.rules_sheet_csv;\n}\n\n// Check for base64 encoded files\nif (inputData.case_data_base64) {\n  caseDataCSV = Buffer.from(inputData.case_data_base64, 'base64').toString('utf8');\n}\nif (inputData.rules_sheet_base64) {\n  rulesSheetCSV = Buffer.from(inputData.rules_sheet_base64, 'base64').toString('utf8');\n}\n\nif (!caseDataCSV || !rulesSheetCSV) {\n  throw new Error('Missing required CSV data');\n}\n\n// Parse both CSVs\nconst caseData = parseCSV(caseDataCSV);\nconst rulesSheet = parseCSV(rulesSheetCSV);\n\n// Create lookup map\nconst rulesLookup = {};\nrulesSheet.forEach(rule => {\n  const name = normalizeName(rule['attorney name'] || rule['attorney_name'] || rule['name']);\n  rulesLookup[name] = {\n    userPercentage: parsePercentage(rule['user percentage'] || rule['user_percentage']),\n    originationPercentage: parsePercentage(rule['own origination other work percentage'] || rule['own_origination_other_work_percentage'] || rule['origination_percentage'])\n  };\n});\n\n// Process each case\nconst results = [];\n\ncaseData.forEach(caseRow => {\n  const matter = caseRow['matter'] || '';\n  const date = caseRow['date'] || '';\n  const totalCollected = parseCurrency(caseRow['total collected'] || caseRow['total_collected']);\n  const userName = caseRow['user'] || '';\n  const originatorName = caseRow['originator'] || '';\n  \n  // AGENT 1: User Calculation\n  const userNameNormalized = normalizeName(userName);\n  const userRule = rulesLookup[userNameNormalized] || { userPercentage: 0, originationPercentage: 0 };\n  const userPercentage = userRule.userPercentage;\n  const userPay = totalCollected * userPercentage;\n  \n  // AGENT 2: Originator Calculation\n  const originatorNameNormalized = normalizeName(originatorName);\n  const isSamePerson = userNameNormalized === originatorNameNormalized;\n  \n  let originatorPercentage = '';\n  let originatorPay = '';\n  \n  if (!isSamePerson && originatorName) {\n    const originatorRule = rulesLookup[originatorNameNormalized] || { originationPercentage: 0 };\n    originatorPercentage = originatorRule.originationPercentage;\n    // CRITICAL: Multiply against User Pay, NOT total collected\n    originatorPay = userPay * originatorPercentage;\n    \n    originatorPercentage = (originatorPercentage * 100).toFixed(1) + '%';\n    originatorPay = originatorPay.toFixed(2);\n  }\n  \n  results.push({\n    matter: matter,\n    date: date,\n    user: userName,\n    originator: originatorName,\n    'total collected': totalCollected.toFixed(2),\n    'user percentage': (userPercentage * 100).toFixed(1) + '%',\n    'user pay': userPay.toFixed(2),\n    'originator percentage': originatorPercentage,\n    'originator pay': originatorPay\n  });\n});\n\n// Generate output CSV\nconst headers = ['matter', 'date', 'user', 'originator', 'total collected', 'user percentage', 'user pay', 'originator percentage', 'originator pay'];\nlet csvOutput = headers.join(',') + '\\n';\n\nresults.forEach(row => {\n  const values = headers.map(h => {\n    const val = row[h];\n    if (val && val.toString().includes(',')) {\n      return '\"' + val + '\"';\n    }\n    return val;\n  });\n  csvOutput += values.join(',') + '\\n';\n});\n\nreturn [{\n  json: {\n    csv_output: csvOutput,\n    processed_rows: results.length,\n    results: results\n  }\n}];"
+      },
+      "id": "a1b2c3d4-0005-0005-0005-000000000005",
+      "name": "Process File Upload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 520]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0006-0006-0006-000000000006",
+      "name": "Respond with Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [720, 520]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Process CSV Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process CSV Data": {
+      "main": [
+        [
+          {
+            "node": "Respond with CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "File Upload Trigger": {
+      "main": [
+        [
+          {
+            "node": "Process File Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process File Upload": {
+      "main": [
+        [
+          {
+            "node": "Respond with Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "tags": []
+}

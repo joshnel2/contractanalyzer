@@ -1,13 +1,3 @@
-# Environment files
 .env
-
-# n8n data (stored in Docker volume)
 n8n_data/
-
-# OS files
 .DS_Store
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/

@@ -15,10 +15,9 @@ services:
       - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
       - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:5678/}
       - GENERIC_TIMEZONE=${TIMEZONE:-UTC}
-      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-your-encryption-key-change-me}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-your-encryption-key-min-24-chars}
     volumes:
       - n8n_data:/home/node/.n8n
-      - ./workflows:/home/node/workflows
 
 volumes:
   n8n_data:

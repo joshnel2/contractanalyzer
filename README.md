@@ -1,147 +1,107 @@
-# n8n Workflow Deployment
+# Attorney Commission Calculator - n8n Workflow
 
-This repository contains an n8n workflow automation setup ready for deployment.
+This n8n workflow calculates attorney commissions from case data and rules sheets.
+
+## Calculation Logic
+
+### Agent 1: User Calculation
+1. Find the `user` from Case Data in the Rules Sheet
+2. Calculate: **User Pay = Total Collected × User Percentage**
+
+### Agent 2: Originator Calculation
+1. Compare `originator` with `user`
+2. **If SAME person:** Leave Originator fields blank
+3. **If DIFFERENT:** Calculate: **Originator Pay = User Pay × Own Origination Other Work Percentage**
+   - ⚠️ Multiplies against User Pay, NOT total collected
 
 ## Quick Start
 
-### 1. Prerequisites
-
-- [Docker](https://docs.docker.com/get-docker/) and Docker Compose installed
-
-### 2. Setup
+### 1. Start n8n
 
 ```bash
-# Clone this repository
-git clone <your-repo-url>
-cd <repo-name>
-
-# Copy environment file and configure
 cp .env.example .env
-
-# Edit .env with your settings
-nano .env
+docker-compose up -d
 ```
 
-### 3. Run Locally
+Access n8n at: **http://localhost:5678** (admin / changeme)
+
+### 2. Import the Workflow
+
+1. Open n8n → **Workflows** → **Import from File**
+2. Select `workflows/attorney-commission-calculator.json`
+3. **Activate** the workflow (toggle in top-right)
+
+### 3. Use the Workflow
+
+**Via API (JSON body):**
 
 ```bash
-# Start n8n
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
+curl -X POST http://localhost:5678/webhook/calculate-commissions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "case_data_csv": "matter,date,total collected,user,originator\nCase-001,2024-01-15,10000.00,John Smith,John Smith\nCase-002,2024-01-20,25000.00,Jane Doe,John Smith",
+    "rules_sheet_csv": "attorney name,user percentage,own origination other work percentage\nJohn Smith,30%,10%\nJane Doe,25%,15%"
+  }'
 ```
 
-Access n8n at: **http://localhost:5678**
+**Using the test script:**
 
-Default credentials (change in `.env`):
-- Username: `admin`
-- Password: `changeme`
+```bash
+./test-workflow.sh
+```
 
-### 4. Import Workflows
+## Input Format
 
-1. Open n8n in your browser
-2. Go to **Workflows** → **Import from File**
-3. Select workflows from the `./workflows` directory
+### Case Data CSV
+```csv
+matter,date,total collected,user,originator
+Case-001,2024-01-15,10000.00,John Smith,John Smith
+Case-002,2024-01-20,25000.00,Jane Doe,John Smith
+```
 
-## Production Deployment
+### Rules Sheet CSV
+```csv
+attorney name,user percentage,own origination other work percentage
+John Smith,30%,10%
+Jane Doe,25%,15%
+```
 
-### Deploy to a Server
+## Output Format
 
-1. **Set up a server** (DigitalOcean, AWS, etc.) with Docker installed
+```csv
+matter,date,user,originator,total collected,user percentage,user pay,originator percentage,originator pay
+Case-001,2024-01-15,John Smith,John Smith,10000.00,30.0%,3000.00,,
+Case-002,2024-01-20,Jane Doe,John Smith,25000.00,25.0%,6250.00,10.0%,625.00
+```
 
-2. **Configure environment variables:**
-   ```bash
-   cp .env.example .env
-   # Edit with production values:
-   # - N8N_HOST=your-domain.com
-   # - N8N_PROTOCOL=https
-   # - Strong passwords
-   ```
+Note: When user = originator, originator percentage and pay are left blank.
 
-3. **Add reverse proxy (nginx example):**
-   ```nginx
-   server {
-       listen 80;
-       server_name your-domain.com;
-       return 301 https://$server_name$request_uri;
-   }
-
-   server {
-       listen 443 ssl;
-       server_name your-domain.com;
-
-       ssl_certificate /path/to/cert.pem;
-       ssl_certificate_key /path/to/key.pem;
-
-       location / {
-           proxy_pass http://localhost:5678;
-           proxy_http_version 1.1;
-           proxy_set_header Upgrade $http_upgrade;
-           proxy_set_header Connection "upgrade";
-           proxy_set_header Host $host;
-           proxy_set_header X-Real-IP $remote_addr;
-       }
-   }
-   ```
-
-4. **Start n8n:**
-   ```bash
-   docker-compose up -d
-   ```
-
-### Deploy to Railway/Render/Fly.io
-
-These platforms support Docker deployments. Push this repo and configure environment variables in their dashboards.
-
-## Workflows
-
-Store your workflow JSON exports in the `./workflows` directory for version control.
-
-### Export a Workflow
-
-1. In n8n, open the workflow
-2. Click **...** → **Download**
-3. Save to `./workflows/`
-
-### Sample Workflow
-
-A sample webhook workflow is included at `./workflows/sample-webhook-workflow.json`
-
-## Directory Structure
+## File Structure
 
 ```
 .
-├── docker-compose.yml    # n8n Docker configuration
-├── .env.example          # Environment variables template
-├── .gitignore
+├── docker-compose.yml              # n8n Docker config
+├── .env.example                    # Environment template
 ├── README.md
-└── workflows/            # Workflow JSON files (version controlled)
-    └── sample-webhook-workflow.json
+├── test-workflow.sh                # Test script
+├── workflows/
+│   └── attorney-commission-calculator.json
+└── sample-data/
+    ├── case_data.csv
+    └── rules_sheet.csv
 ```
 
-## Useful Commands
+## Deployment
 
+### Local Development
 ```bash
-# Start n8n
-docker-compose up -d
-
-# Stop n8n
-docker-compose down
-
-# View logs
-docker-compose logs -f n8n
-
-# Restart n8n
-docker-compose restart
-
-# Update n8n to latest version
-docker-compose pull
 docker-compose up -d
 ```
 
-## Resources
+### Production
+1. Set secure passwords in `.env`
+2. Configure reverse proxy with SSL
+3. Update `N8N_HOST` and `WEBHOOK_URL` to your domain
 
-- [n8n Documentation](https://docs.n8n.io/)
-- [n8n Community](https://community.n8n.io/)
-- [Workflow Templates](https://n8n.io/workflows)
+### Cloud (Railway, Render, Fly.io)
+Push this repo and set environment variables in their dashboard.
