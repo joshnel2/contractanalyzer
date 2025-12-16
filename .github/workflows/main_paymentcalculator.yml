@@ -21,10 +21,10 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: 'Deploy to Azure Web App'
+      - name: Deploy using publish profile
         uses: azure/webapps-deploy@v2
+        env:
+          PUBLISH_PROFILE: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
         with:
-          app-name: 'paymentcalculator'
-          slot-name: 'Production'
+          app-name: paymentcalculator
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: .
