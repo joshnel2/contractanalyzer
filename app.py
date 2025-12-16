@@ -3,11 +3,19 @@ import csv
 import json
 import time
 import io
+import logging
 from flask import Flask, request, render_template, jsonify, Response
 from openai import AzureOpenAI
 
+# Configure logging for Azure
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-prod')
+
+# Production settings
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max upload
 
 # Azure OpenAI Configuration
 AZURE_OPENAI_ENDPOINT = os.environ.get('AZURE_OPENAI_ENDPOINT')
@@ -158,7 +166,7 @@ Take your time to calculate each row carefully and accurately. Return the result
     
     except Exception as e:
         # Fallback to manual calculation if AI fails
-        print(f"AI processing failed, using fallback: {e}")
+        logger.warning(f"AI processing failed, using fallback: {e}")
         return calculate_fallback(cases_summary)
 
 def calculate_fallback(cases_summary):
@@ -316,18 +324,34 @@ def download():
 
 @app.route('/health')
 def health():
-    """Health check endpoint"""
+    """Health check endpoint for Azure"""
     config_status = {
         'endpoint_set': bool(AZURE_OPENAI_ENDPOINT),
         'api_key_set': bool(AZURE_OPENAI_API_KEY),
         'deployment_set': bool(AZURE_OPENAI_DEPLOYMENT)
     }
+    all_configured = all(config_status.values())
     return jsonify({
-        'status': 'healthy',
+        'status': 'healthy' if all_configured else 'misconfigured',
         'azure_config': config_status
-    })
+    }), 200 if all_configured else 503
+
+@app.route('/robots.txt')
+def robots():
+    """Robots.txt for search engines"""
+    return Response("User-agent: *\nDisallow: /process\n", mimetype='text/plain')
+
+# Error handlers
+@app.errorhandler(413)
+def too_large(e):
+    return jsonify({'error': 'File too large. Maximum size is 50MB.'}), 413
+
+@app.errorhandler(500)
+def server_error(e):
+    logger.error(f"Server error: {e}")
+    return jsonify({'error': 'Internal server error. Please try again.'}), 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 8000))
     debug = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug)
