@@ -52,7 +52,7 @@ In the Azure Portal:
 2. Set the **Startup Command** to:
 
 ```bash
-gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000
+gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:$PORT
 ```
 
 ### 4. Deploy the Application
