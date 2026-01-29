@@ -11,19 +11,14 @@ def get_ai_config():
     """
     Get Azure AI Foundry configuration from environment variables.
     
-    Expected environment variables for Azure AI Foundry:
-    - AZURE_AI_FOUNDRY_ENDPOINT: Your AI Foundry project endpoint 
-      (e.g., https://your-project.services.ai.azure.com or https://your-resource.openai.azure.com)
-    - AZURE_AI_FOUNDRY_API_KEY: Your API key
-    - AZURE_AI_FOUNDRY_DEPLOYMENT: Your model deployment name (e.g., gpt-4o, gpt-4o-mini)
-    
-    Also supports legacy Azure OpenAI naming:
-    - AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_KEY, AZURE_DEPLOYMENT_NAME
+    Expected environment variables:
+    - AZURE_OPENAI_ENDPOINT: Your Azure OpenAI / AI Foundry endpoint
+    - AZURE_OPENAI_API_KEY: Your API key
+    - AZURE_OPENAI_DEPLOYMENT_NAME: Your model deployment name (e.g., gpt-4o, gpt-4o-mini)
     """
-    # Try Azure AI Foundry env vars first
-    endpoint = os.getenv("AZURE_AI_FOUNDRY_ENDPOINT") or os.getenv("AZURE_OPENAI_ENDPOINT", "")
-    api_key = os.getenv("AZURE_AI_FOUNDRY_API_KEY") or os.getenv("AZURE_OPENAI_KEY", "")
-    deployment = os.getenv("AZURE_AI_FOUNDRY_DEPLOYMENT") or os.getenv("AZURE_DEPLOYMENT_NAME", "")
+    endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+    api_key = os.getenv("AZURE_OPENAI_API_KEY", "")
+    deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "")
     
     # Clean up endpoint
     endpoint = endpoint.rstrip("/")
@@ -61,25 +56,25 @@ def chat_completions(req: func.HttpRequest) -> func.HttpResponse:
     
     # Check configuration
     if not endpoint:
-        logging.error("AZURE_AI_FOUNDRY_ENDPOINT not configured")
+        logging.error("AZURE_OPENAI_ENDPOINT not configured")
         return func.HttpResponse(
-            json.dumps({"error": {"message": "AZURE_AI_FOUNDRY_ENDPOINT not configured", "type": "configuration_error"}}),
+            json.dumps({"error": {"message": "AZURE_OPENAI_ENDPOINT not configured", "type": "configuration_error"}}),
             status_code=500,
             mimetype="application/json"
         )
     
     if not api_key:
-        logging.error("AZURE_AI_FOUNDRY_API_KEY not configured")
+        logging.error("AZURE_OPENAI_API_KEY not configured")
         return func.HttpResponse(
-            json.dumps({"error": {"message": "AZURE_AI_FOUNDRY_API_KEY not configured", "type": "configuration_error"}}),
+            json.dumps({"error": {"message": "AZURE_OPENAI_API_KEY not configured", "type": "configuration_error"}}),
             status_code=500,
             mimetype="application/json"
         )
     
     if not deployment:
-        logging.error("AZURE_AI_FOUNDRY_DEPLOYMENT not configured")
+        logging.error("AZURE_OPENAI_DEPLOYMENT_NAME not configured")
         return func.HttpResponse(
-            json.dumps({"error": {"message": "AZURE_AI_FOUNDRY_DEPLOYMENT not configured", "type": "configuration_error"}}),
+            json.dumps({"error": {"message": "AZURE_OPENAI_DEPLOYMENT_NAME not configured", "type": "configuration_error"}}),
             status_code=500,
             mimetype="application/json"
         )

@@ -8,23 +8,16 @@ Set these in your Azure Function App → Configuration → Application settings:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `AZURE_AI_FOUNDRY_ENDPOINT` | Your AI Foundry or Azure OpenAI endpoint URL | `https://your-resource.openai.azure.com` |
-| `AZURE_AI_FOUNDRY_API_KEY` | Your API key from Azure AI Foundry | `abc123...` |
-| `AZURE_AI_FOUNDRY_DEPLOYMENT` | The name of your model deployment | `gpt-4o` |
+| `AZURE_OPENAI_ENDPOINT` | Your Azure OpenAI / AI Foundry endpoint URL | `https://your-resource.openai.azure.com` |
+| `AZURE_OPENAI_API_KEY` | Your API key | `abc123...` |
+| `AZURE_OPENAI_DEPLOYMENT_NAME` | The name of your model deployment | `gpt-4o` |
 | `AZURE_AI_API_VERSION` | (Optional) API version | `2024-08-01-preview` |
 
-### Finding Your Azure AI Foundry Values
+### Finding Your Values
 
 1. **Endpoint**: In Azure AI Foundry portal, go to your project → Deployments → Select your model → Copy the "Target URI" (just the base URL part)
 2. **API Key**: Same location → Copy "Key"
 3. **Deployment Name**: The name you gave your model deployment (e.g., `gpt-4o`, `gpt-4o-mini`)
-
-### Legacy Azure OpenAI Variables (Also Supported)
-
-The bridge also supports these legacy variable names:
-- `AZURE_OPENAI_ENDPOINT`
-- `AZURE_OPENAI_KEY`
-- `AZURE_DEPLOYMENT_NAME`
 
 ## API Endpoints
 
