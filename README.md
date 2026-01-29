@@ -1,42 +1,36 @@
-# Moltbot Azure AI Bridge (Azure Functions)
+# Moltbot Azure AI Bridge
 
-Serverless bridge connecting Moltbot to Azure AI Foundry.
+Connects Moltbot to Azure AI Foundry.
 
-## Deploy to Azure Functions
+## Deploy to Azure Web App
 
-### Option 1: Azure Portal (Easiest)
+1. **Delete** `moltazurebridge1` (it's set to Node.js, won't work)
 
-1. Go to **Azure Portal** → **Create a resource** → **Function App**
-2. Settings:
-   - **Runtime stack**: Python
-   - **Version**: 3.11
-   - **Plan type**: Consumption (serverless)
-3. After creation, go to your Function App
-4. **Deployment Center** → **GitHub** → Select this repo → Save
-5. **Configuration** → **Application settings** → Add:
-   - `AZURE_OPENAI_KEY` = your key
-   - `AZURE_OPENAI_ENDPOINT` = `https://your-resource.openai.azure.com`
-   - `AZURE_DEPLOYMENT_NAME` = your deployment name
+2. **Create new Web App:**
+   - Azure Portal → Create a resource → **Web App**
+   - Runtime stack: **Python 3.11**
+   - Operating System: **Linux**
+   - Plan: Basic B1 or higher
 
-### Option 2: VS Code
+3. **Connect GitHub:**
+   - Go to new Web App → **Deployment Center**
+   - Source: **GitHub**
+   - Select this repo (`joshnel2/contractanalyzer`)
+   - Branch: `main`
+   - Save (Azure creates the workflow automatically)
 
-1. Install **Azure Functions** extension
-2. Open this folder
-3. Click Azure icon → Functions → Deploy to Function App
+4. **Add Environment Variables:**
+   - Web App → **Configuration** → **Application settings**
+   - Add:
+     - `AZURE_OPENAI_KEY`
+     - `AZURE_OPENAI_ENDPOINT`
+     - `AZURE_DEPLOYMENT_NAME`
 
-## Configure Moltbot
-
-Set API endpoint to:
-```
-https://your-function-app.azurewebsites.net/api
-```
+5. **Configure Moltbot:**
+   - Set endpoint to: `https://YOUR-APP-NAME.azurewebsites.net`
 
 ## Endpoints
 
-- `GET /api/` - Health check
-- `POST /api/v1/chat/completions` - Main endpoint
-- `POST /api/chat/completions` - Alternative
-
-## Note
-
-Streaming is disabled in Azure Functions. Responses return complete (not typed out character by character). If you need streaming, use Azure Web App with the Flask version.
+- `GET /` → `{"status": "Bridge Active"}`
+- `POST /v1/chat/completions` → Main endpoint
+- `POST /chat/completions` → Alternative
