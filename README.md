@@ -1,47 +1,42 @@
-# Moltbot Azure AI Bridge
+# Moltbot Azure AI Bridge (Azure Functions)
 
-Connects Moltbot to Azure AI Foundry. Translates authentication and streams responses.
+Serverless bridge connecting Moltbot to Azure AI Foundry.
 
-## Azure Web App Deployment
+## Deploy to Azure Functions
 
-### Environment Variables
+### Option 1: Azure Portal (Easiest)
 
-In Azure Portal → Web App → **Configuration** → **Application settings**, add:
+1. Go to **Azure Portal** → **Create a resource** → **Function App**
+2. Settings:
+   - **Runtime stack**: Python
+   - **Version**: 3.11
+   - **Plan type**: Consumption (serverless)
+3. After creation, go to your Function App
+4. **Deployment Center** → **GitHub** → Select this repo → Save
+5. **Configuration** → **Application settings** → Add:
+   - `AZURE_OPENAI_KEY` = your key
+   - `AZURE_OPENAI_ENDPOINT` = `https://your-resource.openai.azure.com`
+   - `AZURE_DEPLOYMENT_NAME` = your deployment name
 
-| Name | Value |
-|------|-------|
-| `AZURE_OPENAI_KEY` | Your Azure OpenAI API key |
-| `AZURE_OPENAI_ENDPOINT` | `https://your-resource.openai.azure.com` |
-| `AZURE_DEPLOYMENT_NAME` | Your deployment name (e.g., gpt-4o) |
+### Option 2: VS Code
 
-### Startup Command
-
-Leave the Startup Command **empty**. Azure auto-detects Flask apps.
-
-If it still doesn't work, try setting Startup Command to:
-```
-gunicorn app:app
-```
+1. Install **Azure Functions** extension
+2. Open this folder
+3. Click Azure icon → Functions → Deploy to Function App
 
 ## Configure Moltbot
 
-Set API endpoint to your Azure Web App URL:
+Set API endpoint to:
 ```
-https://your-app.azurewebsites.net
+https://your-function-app.azurewebsites.net/api
 ```
 
 ## Endpoints
 
-- `GET /` - Health check (returns `{"status": "Bridge Active"}`)
-- `POST /v1/chat/completions` - Main endpoint (Moltbot default)
-- `POST /chat/completions` - Alternative endpoint
+- `GET /api/` - Health check
+- `POST /api/v1/chat/completions` - Main endpoint
+- `POST /api/chat/completions` - Alternative
 
-## Local Development
+## Note
 
-```bash
-pip install -r requirements.txt
-export AZURE_OPENAI_KEY="your-key"
-export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com"
-export AZURE_DEPLOYMENT_NAME="your-deployment"
-python app.py
-```
+Streaming is disabled in Azure Functions. Responses return complete (not typed out character by character). If you need streaming, use Azure Web App with the Flask version.
