@@ -26,57 +26,139 @@ def get_ai_config():
     return endpoint, api_key, deployment
 
 
-@app.route(route="", methods=["GET"])
+def get_api_key_from_request(req: func.HttpRequest) -> str:
+    """
+    Extract API key from request headers.
+    Supports both OpenAI style (Authorization: Bearer) and Azure style (api-key header).
+    Also supports X-API-Key header commonly used by proxies.
+    """
+    # Check Authorization header first (OpenAI style)
+    auth_header = req.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return auth_header[7:]
+    
+    # Check api-key header (Azure style)
+    api_key = req.headers.get("api-key", "")
+    if api_key:
+        return api_key
+    
+    # Check X-API-Key header (common proxy style)
+    x_api_key = req.headers.get("X-API-Key", "")
+    if x_api_key:
+        return x_api_key
+    
+    return ""
+
+
+def create_error_response(message: str, error_type: str, status_code: int) -> func.HttpResponse:
+    """Create a standardized error response in OpenAI format."""
+    error_body = {
+        "error": {
+            "message": message,
+            "type": error_type,
+            "param": None,
+            "code": None
+        }
+    }
+    return func.HttpResponse(
+        json.dumps(error_body),
+        status_code=status_code,
+        mimetype="application/json",
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, api-key, X-API-Key"
+        }
+    )
+
+
+@app.route(route="", methods=["GET", "OPTIONS"])
 def health(req: func.HttpRequest) -> func.HttpResponse:
     """Health check endpoint"""
+    # Handle CORS preflight
+    if req.method == "OPTIONS":
+        return func.HttpResponse(
+            "",
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, api-key, X-API-Key"
+            }
+        )
+    
     endpoint, api_key, deployment = get_ai_config()
     
     config_status = {
-        "status": "Bridge Active",
+        "status": "healthy",
+        "service": "Azure AI Foundry Bridge for Moltbot",
+        "version": "1.0.0",
         "endpoint_configured": bool(endpoint),
         "api_key_configured": bool(api_key),
         "deployment_configured": bool(deployment),
+        "deployment_name": deployment if deployment else None
     }
     
     return func.HttpResponse(
         json.dumps(config_status), 
-        mimetype="application/json"
+        mimetype="application/json",
+        headers={
+            "Access-Control-Allow-Origin": "*"
+        }
     )
 
 
-@app.route(route="v1/chat/completions", methods=["POST"])
+@app.route(route="v1/chat/completions", methods=["POST", "OPTIONS"])
 def chat_completions(req: func.HttpRequest) -> func.HttpResponse:
     """
     OpenAI-compatible chat completions endpoint.
     Proxies requests to Azure AI Foundry.
+    
+    This endpoint is compatible with Moltbot's OpenAI provider format.
+    Configure Moltbot with:
+    - baseUrl: https://your-function-app.azurewebsites.net/v1
+    - apiKey: any-value (or your configured key)
+    - api: openai-completions
     """
-    logging.info("MOLT Bot request received")
+    # Handle CORS preflight
+    if req.method == "OPTIONS":
+        return func.HttpResponse(
+            "",
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, api-key, X-API-Key"
+            }
+        )
+    
+    logging.info("Moltbot chat completions request received")
     
     endpoint, api_key, deployment = get_ai_config()
     
     # Check configuration
     if not endpoint:
         logging.error("AZURE_OPENAI_ENDPOINT not configured")
-        return func.HttpResponse(
-            json.dumps({"error": {"message": "AZURE_OPENAI_ENDPOINT not configured", "type": "configuration_error"}}),
-            status_code=500,
-            mimetype="application/json"
+        return create_error_response(
+            "Server not configured: AZURE_OPENAI_ENDPOINT missing",
+            "configuration_error",
+            500
         )
     
     if not api_key:
         logging.error("AZURE_OPENAI_API_KEY not configured")
-        return func.HttpResponse(
-            json.dumps({"error": {"message": "AZURE_OPENAI_API_KEY not configured", "type": "configuration_error"}}),
-            status_code=500,
-            mimetype="application/json"
+        return create_error_response(
+            "Server not configured: AZURE_OPENAI_API_KEY missing",
+            "configuration_error",
+            500
         )
     
     if not deployment:
         logging.error("AZURE_OPENAI_DEPLOYMENT_NAME not configured")
-        return func.HttpResponse(
-            json.dumps({"error": {"message": "AZURE_OPENAI_DEPLOYMENT_NAME not configured", "type": "configuration_error"}}),
-            status_code=500,
-            mimetype="application/json"
+        return create_error_response(
+            "Server not configured: AZURE_OPENAI_DEPLOYMENT_NAME missing",
+            "configuration_error",
+            500
         )
     
     # Parse request body
@@ -84,94 +166,181 @@ def chat_completions(req: func.HttpRequest) -> func.HttpResponse:
         body = req.get_json()
     except ValueError as e:
         logging.error(f"Invalid JSON in request: {e}")
-        return func.HttpResponse(
-            json.dumps({"error": {"message": "Invalid JSON in request body", "type": "invalid_request_error"}}),
-            status_code=400,
-            mimetype="application/json"
+        return create_error_response(
+            "Invalid JSON in request body",
+            "invalid_request_error",
+            400
         )
     
-    # Disable streaming for simplicity (MOLT Bot doesn't need it)
+    # Log the incoming request model for debugging
+    incoming_model = body.get("model", "not specified")
+    logging.info(f"Incoming model request: {incoming_model}")
+    
+    # Disable streaming - Azure Functions HTTP doesn't support true streaming
+    # Moltbot will fall back to non-streaming mode
     body["stream"] = False
     
-    # Remove model from body if present - we use deployment name
+    # Remove model from body - we use deployment name instead
+    # The deployment name IS the model in Azure OpenAI
     body.pop("model", None)
     
     # Build Azure AI Foundry URL
-    # Works for both Azure OpenAI resources and AI Foundry endpoints
     api_version = os.getenv("AZURE_AI_API_VERSION", "2024-08-01-preview")
     url = f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_version}"
     
-    logging.info(f"Proxying request to Azure AI Foundry: {endpoint}/openai/deployments/{deployment}/...")
+    logging.info(f"Proxying to Azure AI Foundry deployment: {deployment}")
     
-    # Set headers - api-key header works for both Azure OpenAI and AI Foundry
+    # Set headers for Azure AI Foundry
     headers = {
         "Content-Type": "application/json",
         "api-key": api_key
     }
     
     try:
-        resp = requests.post(url, headers=headers, json=body, timeout=180)
+        resp = requests.post(url, headers=headers, json=body, timeout=300)
         
         logging.info(f"Azure AI Foundry response status: {resp.status_code}")
         
         if resp.status_code != 200:
             logging.error(f"Azure AI Foundry error: {resp.text}")
+            # Try to forward the error as-is if it's valid JSON
+            try:
+                error_json = resp.json()
+                return func.HttpResponse(
+                    json.dumps(error_json),
+                    status_code=resp.status_code,
+                    mimetype="application/json",
+                    headers={"Access-Control-Allow-Origin": "*"}
+                )
+            except:
+                return create_error_response(
+                    f"Azure AI Foundry error: {resp.text}",
+                    "api_error",
+                    resp.status_code
+                )
         
-        return func.HttpResponse(
-            resp.text,
-            status_code=resp.status_code,
-            mimetype="application/json"
-        )
+        # Parse successful response
+        try:
+            response_json = resp.json()
+            
+            # Add/override the model field to match what was requested
+            # This helps Moltbot track which model was used
+            if "model" not in response_json or not response_json["model"]:
+                response_json["model"] = deployment
+            
+            return func.HttpResponse(
+                json.dumps(response_json),
+                status_code=200,
+                mimetype="application/json",
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
+        except:
+            # If response isn't JSON, return as-is
+            return func.HttpResponse(
+                resp.text,
+                status_code=resp.status_code,
+                mimetype="application/json",
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
         
     except requests.exceptions.Timeout:
         logging.error("Request to Azure AI Foundry timed out")
-        return func.HttpResponse(
-            json.dumps({"error": {"message": "Request timed out", "type": "timeout_error"}}),
-            status_code=504,
-            mimetype="application/json"
+        return create_error_response(
+            "Request to Azure AI Foundry timed out after 300 seconds",
+            "timeout_error",
+            504
         )
     except requests.exceptions.RequestException as e:
         logging.error(f"Request to Azure AI Foundry failed: {e}")
-        return func.HttpResponse(
-            json.dumps({"error": {"message": f"Failed to connect to Azure AI Foundry: {str(e)}", "type": "connection_error"}}),
-            status_code=502,
-            mimetype="application/json"
+        return create_error_response(
+            f"Failed to connect to Azure AI Foundry: {str(e)}",
+            "connection_error",
+            502
         )
 
 
-@app.route(route="chat/completions", methods=["POST"])
+@app.route(route="chat/completions", methods=["POST", "OPTIONS"])
 def chat_completions_alt(req: func.HttpRequest) -> func.HttpResponse:
-    """Alternative endpoint without v1 prefix"""
+    """Alternative endpoint without v1 prefix for compatibility"""
     return chat_completions(req)
 
 
-@app.route(route="v1/models", methods=["GET"])
+@app.route(route="v1/models", methods=["GET", "OPTIONS"])
 def list_models(req: func.HttpRequest) -> func.HttpResponse:
     """
     OpenAI-compatible models list endpoint.
-    Returns the configured deployment as available model.
+    Returns the configured deployment as an available model.
+    
+    Moltbot uses this to discover available models.
     """
+    # Handle CORS preflight
+    if req.method == "OPTIONS":
+        return func.HttpResponse(
+            "",
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, api-key, X-API-Key"
+            }
+        )
+    
     _, _, deployment = get_ai_config()
+    
+    # Return the deployment as an available model
+    model_id = deployment or "gpt-4o"
     
     models_response = {
         "object": "list",
         "data": [
             {
-                "id": deployment or "gpt-4o",
+                "id": model_id,
                 "object": "model",
                 "created": 1700000000,
-                "owned_by": "azure"
+                "owned_by": "azure-ai-foundry",
+                "permission": [],
+                "root": model_id,
+                "parent": None
             }
         ]
     }
     
     return func.HttpResponse(
         json.dumps(models_response),
-        mimetype="application/json"
+        mimetype="application/json",
+        headers={"Access-Control-Allow-Origin": "*"}
     )
 
 
-@app.route(route="models", methods=["GET"])
+@app.route(route="models", methods=["GET", "OPTIONS"])
 def list_models_alt(req: func.HttpRequest) -> func.HttpResponse:
     """Alternative models endpoint without v1 prefix"""
     return list_models(req)
+
+
+@app.route(route="v1/completions", methods=["POST", "OPTIONS"])
+def completions(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Legacy completions endpoint (non-chat).
+    Most modern models don't support this, but included for completeness.
+    Redirects to chat completions with a system message wrapper.
+    """
+    # Handle CORS preflight
+    if req.method == "OPTIONS":
+        return func.HttpResponse(
+            "",
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, api-key, X-API-Key"
+            }
+        )
+    
+    # Most Azure OpenAI deployments only support chat completions
+    # Return a helpful error
+    return create_error_response(
+        "This endpoint only supports chat completions. Use /v1/chat/completions instead.",
+        "invalid_request_error",
+        400
+    )
