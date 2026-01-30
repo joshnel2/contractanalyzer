@@ -48,7 +48,7 @@ Add this to your `~/.moltbot/moltbot.json` (or `moltbot.json5`):
     mode: "merge",
     providers: {
       "azure-foundry": {
-        baseUrl: "https://your-function-app.azurewebsites.net/v1",
+        baseUrl: "https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/api/v1",
         apiKey: "not-needed",  // Auth handled by the bridge
         api: "openai-completions",
         models: [
@@ -81,7 +81,7 @@ If you just want to quickly test, the simplest config is:
   models: {
     providers: {
       "azure-foundry": {
-        baseUrl: "https://moltazureai.azurewebsites.net/v1",
+        baseUrl: "https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/api/v1",
         apiKey: "any-value",
         api: "openai-completions",
         models: [{ id: "gpt-5-mini", name: "GPT-5-mini" }]
@@ -109,7 +109,7 @@ You can configure this as a fallback provider:
     mode: "merge",
     providers: {
       "azure-foundry": {
-        baseUrl: "https://your-function-app.azurewebsites.net/v1",
+        baseUrl: "https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/api/v1",
         apiKey: "not-needed",
         api: "openai-completions",
         models: [{ id: "gpt-5-mini", name: "GPT-5-mini via Azure" }]
@@ -134,7 +134,7 @@ You can configure this as a fallback provider:
 ### Health Check
 
 ```bash
-curl https://your-function-app.azurewebsites.net/
+curl https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/api/
 ```
 
 Expected response:
@@ -159,7 +159,7 @@ curl https://your-function-app.azurewebsites.net/v1/models
 ### Chat Completion
 
 ```bash
-curl -X POST https://your-function-app.azurewebsites.net/v1/chat/completions \
+curl -X POST https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/api/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer any-key" \
   -d '{
