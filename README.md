@@ -21,7 +21,7 @@ Set these in your Azure Function App → Configuration → Application settings:
 |----------|-------------|---------|
 | `AZURE_OPENAI_ENDPOINT` | Your Azure OpenAI / AI Foundry endpoint URL | `https://your-resource.openai.azure.com` |
 | `AZURE_OPENAI_API_KEY` | Your API key | `abc123...` |
-| `AZURE_OPENAI_DEPLOYMENT_NAME` | The name of your model deployment | `gpt-4o` |
+| `AZURE_OPENAI_DEPLOYMENT_NAME` | The name of your model deployment | `gpt-5-mini` |
 | `AZURE_AI_API_VERSION` | (Optional) API version | `2024-08-01-preview` |
 
 ### Finding Your Azure Values
@@ -39,7 +39,7 @@ Add this to your `~/.moltbot/moltbot.json` (or `moltbot.json5`):
   // Use the Azure bridge as your model provider
   agents: {
     defaults: {
-      model: { primary: "azure-foundry/gpt-4o" }
+      model: { primary: "azure-foundry/gpt-5-mini" }
     }
   },
   
@@ -53,8 +53,8 @@ Add this to your `~/.moltbot/moltbot.json` (or `moltbot.json5`):
         api: "openai-completions",
         models: [
           {
-            id: "gpt-4o",
-            name: "GPT-4o via Azure",
+            id: "gpt-5-mini",
+            name: "GPT-5-mini via Azure",
             reasoning: false,
             input: ["text", "image"],
             contextWindow: 128000,
@@ -75,7 +75,7 @@ If you just want to quickly test, the simplest config is:
 {
   agents: {
     defaults: {
-      model: { primary: "azure-foundry/gpt-4o" }
+      model: { primary: "azure-foundry/gpt-5-mini" }
     }
   },
   models: {
@@ -84,7 +84,7 @@ If you just want to quickly test, the simplest config is:
         baseUrl: "https://moltazureai.azurewebsites.net/v1",
         apiKey: "any-value",
         api: "openai-completions",
-        models: [{ id: "gpt-4o", name: "GPT-4o" }]
+        models: [{ id: "gpt-5-mini", name: "GPT-5-mini" }]
       }
     }
   }
@@ -101,7 +101,7 @@ You can configure this as a fallback provider:
     defaults: {
       model: {
         primary: "anthropic/claude-opus-4-5",
-        fallback: ["azure-foundry/gpt-4o"]
+        fallback: ["azure-foundry/gpt-5-mini"]
       }
     }
   },
@@ -112,7 +112,7 @@ You can configure this as a fallback provider:
         baseUrl: "https://your-function-app.azurewebsites.net/v1",
         apiKey: "not-needed",
         api: "openai-completions",
-        models: [{ id: "gpt-4o", name: "GPT-4o via Azure" }]
+        models: [{ id: "gpt-5-mini", name: "GPT-5-mini via Azure" }]
       }
     }
   }
@@ -146,7 +146,7 @@ Expected response:
   "endpoint_configured": true,
   "api_key_configured": true,
   "deployment_configured": true,
-  "deployment_name": "gpt-4o"
+  "deployment_name": "gpt-5-mini"
 }
 ```
 
@@ -163,7 +163,7 @@ curl -X POST https://your-function-app.azurewebsites.net/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer any-key" \
   -d '{
-    "model": "gpt-4o",
+    "model": "gpt-5-mini",
     "messages": [{"role": "user", "content": "Hello!"}]
   }'
 ```
