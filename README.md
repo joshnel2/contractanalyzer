@@ -129,7 +129,7 @@ Add this to your config file:
     mode: "merge",
     providers: {
       "azure-foundry": {
-        baseUrl: "https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/api/v1",
+        baseUrl: "https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/v1",
         apiKey: "not-needed",  // Auth handled by the bridge
         api: "openai-completions",
         models: [
@@ -176,7 +176,7 @@ If you just want to quickly test, the simplest config is:
   models: {
     providers: {
       "azure-foundry": {
-        baseUrl: "https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/api/v1",
+        baseUrl: "https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/v1",
         apiKey: "any-value",
         api: "openai-completions",
         models: [{ id: "gpt-5-mini", name: "GPT-5-mini" }]
@@ -204,7 +204,7 @@ You can configure this as a fallback provider while keeping Claude as your prima
     mode: "merge",
     providers: {
       "azure-foundry": {
-        baseUrl: "https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/api/v1",
+        baseUrl: "https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/v1",
         apiKey: "not-needed",
         api: "openai-completions",
         models: [{ id: "gpt-5-mini", name: "GPT-5-mini via Azure" }]
@@ -232,10 +232,10 @@ After configuring, you can verify the bridge is working:
 
 ```bash
 # Check the health endpoint
-curl https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/api/
+curl https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/
 
 # Test a simple completion
-curl -X POST https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/api/v1/chat/completions \
+curl -X POST https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model": "gpt-5-mini", "messages": [{"role": "user", "content": "Hello!"}]}'
 ```
@@ -245,9 +245,9 @@ curl -X POST https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/` | GET | Health check - shows configuration status |
-| `/api/v1/chat/completions` | POST | Main chat completions endpoint (OpenAI format) |
+| `/v1/chat/completions` | POST | Main chat completions endpoint (OpenAI format) |
 | `/api/chat/completions` | POST | Alternative (without v1 prefix) |
-| `/api/v1/models` | GET | List available models |
+| `/v1/models` | GET | List available models |
 | `/api/models` | GET | Alternative (without v1 prefix) |
 
 ## Testing
@@ -255,7 +255,7 @@ curl -X POST https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites
 ### Health Check
 
 ```bash
-curl https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/api/
+curl https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/
 ```
 
 Expected response:
@@ -274,13 +274,13 @@ Expected response:
 ### List Models
 
 ```bash
-curl https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/api/v1/models
+curl https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/v1/models
 ```
 
 ### Chat Completion
 
 ```bash
-curl -X POST https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/api/v1/chat/completions \
+curl -X POST https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer any-key" \
   -d '{

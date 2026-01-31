@@ -72,21 +72,8 @@ def create_error_response(message: str, error_type: str, status_code: int) -> fu
     )
 
 
-@app.route(route="", methods=["GET", "OPTIONS"])
-def health(req: func.HttpRequest) -> func.HttpResponse:
-    """Health check endpoint"""
-    # Handle CORS preflight
-    if req.method == "OPTIONS":
-        return func.HttpResponse(
-            "",
-            status_code=200,
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization, api-key, X-API-Key"
-            }
-        )
-    
+def get_health_response():
+    """Generate health check response"""
     endpoint, api_key, deployment = get_ai_config()
     
     config_status = {
@@ -108,6 +95,35 @@ def health(req: func.HttpRequest) -> func.HttpResponse:
     )
 
 
+def cors_preflight():
+    """Return CORS preflight response"""
+    return func.HttpResponse(
+        "",
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, api-key, X-API-Key"
+        }
+    )
+
+
+@app.route(route="", methods=["GET", "OPTIONS"])
+def health_root(req: func.HttpRequest) -> func.HttpResponse:
+    """Health check endpoint at root /"""
+    if req.method == "OPTIONS":
+        return cors_preflight()
+    return get_health_response()
+
+
+@app.route(route="health", methods=["GET", "OPTIONS"])
+def health(req: func.HttpRequest) -> func.HttpResponse:
+    """Health check endpoint at /health"""
+    if req.method == "OPTIONS":
+        return cors_preflight()
+    return get_health_response()
+
+
 @app.route(route="v1/chat/completions", methods=["POST", "OPTIONS"])
 def chat_completions(req: func.HttpRequest) -> func.HttpResponse:
     """
@@ -116,21 +132,13 @@ def chat_completions(req: func.HttpRequest) -> func.HttpResponse:
     
     This endpoint is compatible with Clawdbot's OpenAI provider format.
     Configure Clawdbot with:
-    - baseUrl: https://your-function-app.azurewebsites.net/api/v1
+    - baseUrl: https://your-function-app.azurewebsites.net/v1
     - apiKey: any-value (authentication handled by the bridge)
     - api: openai-completions
     """
     # Handle CORS preflight
     if req.method == "OPTIONS":
-        return func.HttpResponse(
-            "",
-            status_code=200,
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization, api-key, X-API-Key"
-            }
-        )
+        return cors_preflight()
     
     logging.info("Clawdbot chat completions request received")
     
@@ -273,17 +281,8 @@ def list_models(req: func.HttpRequest) -> func.HttpResponse:
     
     Clawdbot uses this to discover available models.
     """
-    # Handle CORS preflight
     if req.method == "OPTIONS":
-        return func.HttpResponse(
-            "",
-            status_code=200,
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization, api-key, X-API-Key"
-            }
-        )
+        return cors_preflight()
     
     _, _, deployment = get_ai_config()
     
@@ -323,22 +322,11 @@ def completions(req: func.HttpRequest) -> func.HttpResponse:
     """
     Legacy completions endpoint (non-chat).
     Most modern models don't support this, but included for completeness.
-    Redirects to chat completions with a system message wrapper.
     """
-    # Handle CORS preflight
     if req.method == "OPTIONS":
-        return func.HttpResponse(
-            "",
-            status_code=200,
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization, api-key, X-API-Key"
-            }
-        )
+        return cors_preflight()
     
     # Most Azure OpenAI deployments only support chat completions
-    # Return a helpful error
     return create_error_response(
         "This endpoint only supports chat completions. Use /v1/chat/completions instead.",
         "invalid_request_error",
