@@ -1,8 +1,12 @@
 import os
 import json
 import logging
+import time
 import azure.functions as func
 import requests
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
@@ -78,12 +82,17 @@ def get_health_response():
     
     config_status = {
         "status": "healthy",
-        "service": "Azure AI Foundry Bridge for Clawdbot",
-        "version": "1.0.0",
+        "service": "Azure AI Foundry Bridge for MoltBot",
+        "version": "1.1.0",
         "endpoint_configured": bool(endpoint),
         "api_key_configured": bool(api_key),
         "deployment_configured": bool(deployment),
-        "deployment_name": deployment if deployment else None
+        "deployment_name": deployment if deployment else None,
+        "endpoints": {
+            "chat": "/v1/chat/completions",
+            "models": "/v1/models",
+            "debug": "/debug"
+        }
     }
     
     return func.HttpResponse(
@@ -130,17 +139,17 @@ def chat_completions(req: func.HttpRequest) -> func.HttpResponse:
     OpenAI-compatible chat completions endpoint.
     Proxies requests to Azure AI Foundry.
     
-    This endpoint is compatible with Clawdbot's OpenAI provider format.
-    Configure Clawdbot with:
+    This endpoint is compatible with MoltBot and other OpenAI-compatible clients.
+    Configure with:
     - baseUrl: https://your-function-app.azurewebsites.net/v1
     - apiKey: any-value (authentication handled by the bridge)
-    - api: openai-completions
+    - model: gpt-5-mini (or your deployment name)
     """
     # Handle CORS preflight
     if req.method == "OPTIONS":
         return cors_preflight()
     
-    logging.info("Clawdbot chat completions request received")
+    logging.info("Chat completions request received")
     
     endpoint, api_key, deployment = get_ai_config()
     
@@ -173,16 +182,26 @@ def chat_completions(req: func.HttpRequest) -> func.HttpResponse:
     try:
         body = req.get_json()
     except ValueError as e:
-        logging.error(f"Invalid JSON in request: {e}")
+        # Try to get raw body for debugging
+        raw_body = ""
+        try:
+            raw_body = req.get_body().decode('utf-8')[:500]
+        except:
+            pass
+        logging.error(f"Invalid JSON in request: {e}, raw_body: {raw_body}")
         return create_error_response(
-            "Invalid JSON in request body",
+            f"Invalid JSON in request body: {str(e)}",
             "invalid_request_error",
             400
         )
     
-    # Log the incoming request model for debugging
+    # Log the incoming request for debugging
     incoming_model = body.get("model", "not specified")
-    logging.info(f"Incoming model request: {incoming_model}")
+    logging.info(f"Chat request - model: {incoming_model}, messages: {len(body.get('messages', []))}")
+    
+    # Log full request in debug mode
+    if os.getenv("DEBUG_MODE", "").lower() == "true":
+        logging.info(f"Full request body: {json.dumps(body, default=str)}")
     
     # Disable streaming - Azure Functions HTTP doesn't support true streaming
     # Moltbot will fall back to non-streaming mode
@@ -296,8 +315,6 @@ def list_models(req: func.HttpRequest) -> func.HttpResponse:
     """
     OpenAI-compatible models list endpoint.
     Returns the configured deployment as an available model.
-    
-    Clawdbot uses this to discover available models.
     """
     if req.method == "OPTIONS":
         return cors_preflight()
@@ -350,3 +367,60 @@ def completions(req: func.HttpRequest) -> func.HttpResponse:
         "invalid_request_error",
         400
     )
+
+
+@app.route(route="debug", methods=["GET", "POST", "OPTIONS"])
+def debug_endpoint(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Debug endpoint that echoes request details.
+    Useful for troubleshooting MoltBot configuration issues.
+    """
+    if req.method == "OPTIONS":
+        return cors_preflight()
+    
+    endpoint, api_key, deployment = get_ai_config()
+    
+    # Get request body if present
+    body_str = ""
+    body_json = None
+    try:
+        body_str = req.get_body().decode('utf-8')
+        if body_str:
+            body_json = json.loads(body_str)
+    except:
+        pass
+    
+    debug_info = {
+        "status": "debug_endpoint_working",
+        "method": req.method,
+        "url": req.url,
+        "headers": dict(req.headers),
+        "params": dict(req.params),
+        "body": body_json if body_json else body_str,
+        "server_config": {
+            "endpoint_configured": bool(endpoint),
+            "api_key_configured": bool(api_key),
+            "deployment_name": deployment if deployment else "not_set"
+        },
+        "timestamp": int(time.time())
+    }
+    
+    # Remove sensitive headers
+    for key in ["Authorization", "api-key", "X-API-Key", "Cookie"]:
+        if key in debug_info["headers"]:
+            debug_info["headers"][key] = "[REDACTED]"
+    
+    logging.info(f"Debug request: {json.dumps(debug_info, indent=2)}")
+    
+    return func.HttpResponse(
+        json.dumps(debug_info, indent=2),
+        status_code=200,
+        mimetype="application/json",
+        headers={"Access-Control-Allow-Origin": "*"}
+    )
+
+
+@app.route(route="v1/debug", methods=["GET", "POST", "OPTIONS"])
+def debug_endpoint_v1(req: func.HttpRequest) -> func.HttpResponse:
+    """Debug endpoint at v1 path"""
+    return debug_endpoint(req)

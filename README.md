@@ -1,17 +1,17 @@
-# Clawdbot Azure AI Foundry Bridge
+# MoltBot Azure AI Foundry Bridge
 
-An Azure Function app that provides an OpenAI-compatible API endpoint for connecting **Clawdbot** to **Azure AI Foundry**.
+An Azure Function app that provides an OpenAI-compatible API endpoint for connecting **MoltBot** (or any OpenAI-compatible client) to **Azure AI Foundry**.
 
-This allows you to use Azure-hosted models (GPT-4o, GPT-4o-mini, GPT-5-mini, etc.) with Clawdbot instead of direct Anthropic or OpenAI API keys.
+This allows you to use Azure-hosted models (GPT-4o, GPT-4o-mini, GPT-5-mini, etc.) with MoltBot.
 
 ## How It Works
 
 ```
-Clawdbot → This Azure Function → Azure AI Foundry → Your deployed model
-        (OpenAI format)         (Azure format)      (GPT-4o, etc.)
+MoltBot → This Azure Function → Azure AI Foundry → Your deployed model
+       (OpenAI format)         (Azure format)      (GPT-4o, etc.)
 ```
 
-The function translates OpenAI-compatible API requests to Azure AI Foundry format, enabling Clawdbot to use your Azure-hosted models.
+The function translates OpenAI-compatible API requests to Azure AI Foundry format.
 
 ## Required Environment Variables
 
@@ -30,246 +30,171 @@ Set these in your Azure Function App → Configuration → Application settings:
 2. **API Key**: Same location → Copy "Key"
 3. **Deployment Name**: The name you gave your model deployment (e.g., `gpt-4o`, `gpt-4o-mini`)
 
-## Clawdbot Configuration
-
-There are two ways to connect Clawdbot to Azure OpenAI:
-
-| Method | When to Use |
-|--------|-------------|
-| **Direct Connection** | You want Clawdbot to connect directly to Azure OpenAI (simpler setup) |
-| **Via This Bridge** | You need a proxy, want to hide API keys from clients, or need request transformation |
+## MoltBot Configuration
 
 ### Configuration File Location
 
-Your Clawdbot config file is located at one of these paths:
-- `~/.clawdbot/clawdbot.json` (JSON format)
-- `~/.clawdbot/clawdbot.json5` (JSON5 format - allows comments)
-- `~/.moltbot/moltbot.json` (legacy path)
+Your MoltBot config file is typically at:
+- `~/.moltbot/moltbot.json` (JSON format)
+- `~/.moltbot/moltbot.json5` (JSON5 format - allows comments)
 
 ---
 
-## Option 1: Direct Azure OpenAI Connection (Recommended)
+## Quick Start Configuration
 
-If you just want Clawdbot to use Azure OpenAI directly, use this configuration:
+Add this to your MoltBot config file to use the Azure bridge:
 
-```json5
+```json
 {
-  "models": {
-    "mode": "merge",
-    "providers": {
-      "azure": {
-        "api": "openai-completions",
-        "baseUrl": "https://YOUR-RESOURCE.openai.azure.com/openai/v1/",
-        "apiKey": "YOUR_AZURE_API_KEY",
-        "apiVersion": "2024-08-01-preview",
-        "models": [
-          {
-            "id": "gpt-5.1-chat",
-            "name": "GPT-5.1 Chat (Azure)",
-            "contextWindow": 128000
-          }
-        ]
-      }
+  "providers": {
+    "azure-bridge": {
+      "type": "openai",
+      "baseUrl": "https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/v1",
+      "apiKey": "any-value",
+      "models": ["gpt-5-mini"]
     }
   },
-  "agents": {
-    "defaults": {
-      "model": {
-        "primary": "azure:default/gpt-5.1-chat",
-        "fallbacks": ["azure:default/gpt-5.1-chat"]
+  "defaultModel": "azure-bridge:gpt-5-mini"
+}
+```
+
+### Alternative Configuration Formats
+
+If the above doesn't work, try one of these formats:
+
+**Format A - Simple provider:**
+```json
+{
+  "openaiBaseUrl": "https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/v1",
+  "openaiApiKey": "any-value",
+  "model": "gpt-5-mini"
+}
+```
+
+**Format B - Custom provider with full options:**
+```json
+{
+  "models": {
+    "providers": {
+      "azure-bridge": {
+        "baseUrl": "https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/v1",
+        "apiKey": "any-value",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "gpt-5-mini",
+            "name": "GPT-5-mini via Azure"
+          }
+        ]
       }
     }
   }
 }
 ```
 
-### Direct Connection Fields
+**Format C - Claude Code / Roo Code style:**
+```json
+{
+  "apiProvider": "openai-compatible",
+  "openAiBaseUrl": "https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/v1",
+  "openAiApiKey": "any-value", 
+  "openAiModelId": "gpt-5-mini"
+}
+```
 
-| Field | Description |
-|-------|-------------|
-| `api` | Use `"openai-completions"` for Azure OpenAI |
-| `baseUrl` | Your Azure OpenAI endpoint + `/openai/v1/` |
-| `apiKey` | Your Azure OpenAI API key |
-| `apiVersion` | Azure API version (e.g., `"2024-08-01-preview"`) |
-| `models[].id` | Your deployment name in Azure |
-| Model reference | Format: `azure:default/DEPLOYMENT_NAME` |
+---
+
+## Direct Azure OpenAI Connection (Alternative)
+
+If you want MoltBot to connect directly to Azure OpenAI (without this bridge), use:
+
+```json
+{
+  "apiProvider": "openai-compatible",
+  "openAiBaseUrl": "https://YOUR-RESOURCE.openai.azure.com/openai/deployments/YOUR-DEPLOYMENT/",
+  "openAiApiKey": "YOUR_AZURE_API_KEY",
+  "openAiModelId": "gpt-5-mini"
+}
+```
+
+Or with Azure-specific headers:
+```json
+{
+  "providers": {
+    "azure-direct": {
+      "type": "azure-openai",
+      "endpoint": "https://YOUR-RESOURCE.openai.azure.com",
+      "apiKey": "YOUR_AZURE_API_KEY",
+      "deploymentName": "gpt-5-mini",
+      "apiVersion": "2024-08-01-preview"
+    }
+  }
+}
+```
 
 ### Finding Your Azure Values
 
 1. Go to [Azure AI Foundry](https://ai.azure.com) or Azure Portal
 2. Navigate to your Azure OpenAI resource
-3. **Endpoint**: Copy from "Keys and Endpoint" section (add `/openai/v1/` to the end)
-4. **API Key**: Copy from "Keys and Endpoint" section
-5. **Deployment Name**: The name you gave your model deployment (e.g., `gpt-5.1-chat`)
+3. **Endpoint**: Copy from "Keys and Endpoint" section
+4. **API Key**: Copy from "Keys and Endpoint" section  
+5. **Deployment Name**: The name you gave your model deployment
 
 ---
 
-## Option 2: Via This Azure Bridge
+## Debugging Configuration Issues
 
-Use the bridge when you want to:
-- Hide Azure credentials from the client (the bridge handles auth)
-- Add a proxy layer between Clawdbot and Azure
-- Use Azure Functions for request logging/transformation
-
-### Bridge Configuration Example
-
-Add this to your config file:
-
-```json5
-{
-  // Use the Azure bridge as your model provider
-  agents: {
-    defaults: {
-      model: { primary: "azure-foundry/gpt-5-mini" }
-    }
-  },
-  
-  // Configure the custom Azure provider
-  models: {
-    mode: "merge",
-    providers: {
-      "azure-foundry": {
-        baseUrl: "https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/v1",
-        apiKey: "not-needed",  // Auth handled by the bridge
-        api: "openai-completions",
-        models: [
-          {
-            id: "gpt-5-mini",
-            name: "GPT-5-mini via Azure",
-            reasoning: false,
-            input: ["text", "image"],
-            contextWindow: 128000,
-            maxTokens: 16384
-          }
-        ]
-      }
-    }
-  }
-}
-```
-
-### Configuration Breakdown
-
-Here's what each field means:
-
-| Field | Description |
-|-------|-------------|
-| `agents.defaults.model.primary` | The default model to use, in format `provider/model-id` |
-| `models.mode` | Set to `"merge"` to add this provider alongside existing ones |
-| `models.providers.azure-foundry` | The name of your custom provider (can be anything) |
-| `baseUrl` | Your Azure Function URL + `/api/v1` |
-| `apiKey` | Can be any value (authentication is handled by the bridge) |
-| `api` | Must be `"openai-completions"` for this bridge |
-| `models` | Array of available models with their capabilities |
-
-### Minimal Configuration
-
-If you just want to quickly test, the simplest config is:
-
-```json5
-{
-  agents: {
-    defaults: {
-      model: { primary: "azure-foundry/gpt-5-mini" }
-    }
-  },
-  models: {
-    providers: {
-      "azure-foundry": {
-        baseUrl: "https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/v1",
-        apiKey: "any-value",
-        api: "openai-completions",
-        models: [{ id: "gpt-5-mini", name: "GPT-5-mini" }]
-      }
-    }
-  }
-}
-```
-
-### Using with Other Providers (Failover)
-
-You can configure this as a fallback provider while keeping Claude as your primary:
-
-```json5
-{
-  agents: {
-    defaults: {
-      model: {
-        primary: "anthropic/claude-opus-4-5",
-        fallback: ["azure-foundry/gpt-5-mini"]
-      }
-    }
-  },
-  models: {
-    mode: "merge",
-    providers: {
-      "azure-foundry": {
-        baseUrl: "https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/v1",
-        apiKey: "not-needed",
-        api: "openai-completions",
-        models: [{ id: "gpt-5-mini", name: "GPT-5-mini via Azure" }]
-      }
-    }
-  }
-}
-```
-
-### Step-by-Step Setup
-
-1. **Locate your config file**: Check `~/.clawdbot/clawdbot.json5` or create it if it doesn't exist
-
-2. **Add the provider configuration**: Copy one of the examples above into your config file
-
-3. **Customize the model ID**: Change `gpt-5-mini` to match your Azure deployment name (set in `AZURE_OPENAI_DEPLOYMENT_NAME`)
-
-4. **Update the baseUrl**: If you deployed your own instance, replace the URL with your Azure Function App URL
-
-5. **Restart Clawdbot**: The new provider will be available immediately
-
-### Verifying Your Configuration
-
-After configuring, you can verify the bridge is working:
+### Test the endpoints directly:
 
 ```bash
-# Check the health endpoint
-curl https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/
+# 1. Test models endpoint
+curl https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/v1/models
 
-# Test a simple completion
+# 2. Test chat completion
 curl -X POST https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model": "gpt-5-mini", "messages": [{"role": "user", "content": "Hello!"}]}'
+
+# 3. Debug endpoint - shows what the server receives
+curl -X POST https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/debug \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer test-key" \
+  -d '{"test": "data"}'
 ```
+
+### Common Errors
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| "unknown agent" | Model ID not matching | Make sure `model` or `openAiModelId` is exactly `gpt-5-mini` |
+| 400 Bad Request | Invalid request format | Check the debug endpoint to see what's being sent |
+| 404 Not Found | Wrong URL | Make sure baseUrl ends with `/v1` (not `/v1/`) |
+| Connection refused | Wrong endpoint | Verify the full URL is correct |
+
+### Check what MoltBot is sending:
+
+Use the debug endpoint in your config to see the actual requests:
+```json
+{
+  "openAiBaseUrl": "https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net",
+  "openAiApiKey": "debug",
+  "openAiModelId": "debug"
+}
+```
+Then check the Azure Function logs to see what's received.
 
 ## API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/` | GET | Health check - shows configuration status |
+| `/health` | GET | Health check - shows configuration status |
 | `/v1/chat/completions` | POST | Main chat completions endpoint (OpenAI format) |
-| `/api/chat/completions` | POST | Alternative (without v1 prefix) |
+| `/chat/completions` | POST | Alternative (without v1 prefix) |
 | `/v1/models` | GET | List available models |
-| `/api/models` | GET | Alternative (without v1 prefix) |
+| `/models` | GET | Alternative (without v1 prefix) |
+| `/debug` | GET/POST | Debug endpoint - echoes request details |
 
 ## Testing
-
-### Health Check
-
-```bash
-curl https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/
-```
-
-Expected response:
-```json
-{
-  "status": "healthy",
-  "service": "Azure AI Foundry Bridge for Clawdbot",
-  "version": "1.0.0",
-  "endpoint_configured": true,
-  "api_key_configured": true,
-  "deployment_configured": true,
-  "deployment_name": "gpt-5-mini"
-}
-```
 
 ### List Models
 
@@ -277,17 +202,29 @@ Expected response:
 curl https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/v1/models
 ```
 
+Expected response:
+```json
+{
+  "object": "list",
+  "data": [{"id": "gpt-5-mini", "object": "model", ...}]
+}
+```
+
 ### Chat Completion
 
 ```bash
 curl -X POST https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer any-key" \
-  -d '{
-    "model": "gpt-5-mini",
-    "messages": [{"role": "user", "content": "Hello!"}]
-  }'
+  -d '{"model": "gpt-5-mini", "messages": [{"role": "user", "content": "Hello!"}]}'
 ```
+
+### Debug Endpoint
+
+```bash
+curl https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/debug
+```
+
+This returns details about the request and server configuration - useful for troubleshooting.
 
 ## Deployment
 
@@ -311,27 +248,38 @@ Make sure all three environment variables are set in Azure:
 - `AZURE_OPENAI_API_KEY`
 - `AZURE_OPENAI_DEPLOYMENT_NAME`
 
+### "unknown agent" error
+
+This usually means the model ID in your config doesn't match what's available. Try:
+1. Make sure your model ID is exactly `gpt-5-mini` (or whatever the deployment name is)
+2. Use the debug endpoint to check what's being sent
+3. Try a simpler configuration format (see Quick Start above)
+
+### 400 Bad Request errors
+
+1. Check the request format - use the debug endpoint to see what's being received
+2. Make sure `baseUrl` ends with `/v1` (no trailing slash)
+3. Verify the model ID is correct
+
 ### Timeout errors
 
-Azure AI Foundry requests can take time. The function has a 5-minute timeout configured. If you're hitting timeouts:
+Azure AI Foundry requests can take time. The function has a 5-minute timeout. If hitting timeouts:
 1. Check if the model deployment is active in Azure
 2. Try a smaller prompt
 3. Consider using a faster model (e.g., `gpt-4o-mini`)
 
 ### "Model not found" in Azure
 
-Make sure your `AZURE_OPENAI_DEPLOYMENT_NAME` matches exactly the name shown in Azure AI Foundry deployments.
+Make sure your `AZURE_OPENAI_DEPLOYMENT_NAME` matches exactly the name in Azure AI Foundry.
 
-### Clawdbot can't connect
+### MoltBot can't connect
 
-1. Verify the function app URL is correct
-2. Check if the function app is running: `curl https://your-app.azurewebsites.net/api/`
-3. Ensure your `clawdbot.json5` has the correct `baseUrl` (include `/api/v1` at the end)
-4. Check that the provider name in your config matches what you're using (e.g., `azure-foundry`)
+1. Verify the URL is correct: `https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/v1`
+2. Test the endpoint: `curl https://moltazureai-a8agahhybjdre5c4.canadacentral-01.azurewebsites.net/v1/models`
+3. Make sure `baseUrl` ends with `/v1` (not `/v1/`)
+4. Try a different config format from the options above
 
 ## Links
 
-- [Clawdbot Documentation](https://docs.clawd.bot)
-- [Clawdbot Model Providers](https://docs.clawd.bot/concepts/model-providers)
 - [Azure AI Foundry](https://ai.azure.com)
 - [Azure OpenAI Service](https://azure.microsoft.com/products/ai-services/openai-service)
