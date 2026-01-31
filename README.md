@@ -32,7 +32,12 @@ Set these in your Azure Function App → Configuration → Application settings:
 
 ## Clawdbot Configuration
 
-To configure Clawdbot to use this Azure bridge, you need to add a custom model provider to your Clawdbot configuration file.
+There are two ways to connect Clawdbot to Azure OpenAI:
+
+| Method | When to Use |
+|--------|-------------|
+| **Direct Connection** | You want Clawdbot to connect directly to Azure OpenAI (simpler setup) |
+| **Via This Bridge** | You need a proxy, want to hide API keys from clients, or need request transformation |
 
 ### Configuration File Location
 
@@ -41,7 +46,72 @@ Your Clawdbot config file is located at one of these paths:
 - `~/.clawdbot/clawdbot.json5` (JSON5 format - allows comments)
 - `~/.moltbot/moltbot.json` (legacy path)
 
-### Full Configuration Example
+---
+
+## Option 1: Direct Azure OpenAI Connection (Recommended)
+
+If you just want Clawdbot to use Azure OpenAI directly, use this configuration:
+
+```json5
+{
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "azure": {
+        "api": "openai-completions",
+        "baseUrl": "https://YOUR-RESOURCE.openai.azure.com/openai/v1/",
+        "apiKey": "YOUR_AZURE_API_KEY",
+        "apiVersion": "2024-08-01-preview",
+        "models": [
+          {
+            "id": "gpt-5.1-chat",
+            "name": "GPT-5.1 Chat (Azure)",
+            "contextWindow": 128000
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "azure:default/gpt-5.1-chat",
+        "fallbacks": ["azure:default/gpt-5.1-chat"]
+      }
+    }
+  }
+}
+```
+
+### Direct Connection Fields
+
+| Field | Description |
+|-------|-------------|
+| `api` | Use `"openai-completions"` for Azure OpenAI |
+| `baseUrl` | Your Azure OpenAI endpoint + `/openai/v1/` |
+| `apiKey` | Your Azure OpenAI API key |
+| `apiVersion` | Azure API version (e.g., `"2024-08-01-preview"`) |
+| `models[].id` | Your deployment name in Azure |
+| Model reference | Format: `azure:default/DEPLOYMENT_NAME` |
+
+### Finding Your Azure Values
+
+1. Go to [Azure AI Foundry](https://ai.azure.com) or Azure Portal
+2. Navigate to your Azure OpenAI resource
+3. **Endpoint**: Copy from "Keys and Endpoint" section (add `/openai/v1/` to the end)
+4. **API Key**: Copy from "Keys and Endpoint" section
+5. **Deployment Name**: The name you gave your model deployment (e.g., `gpt-5.1-chat`)
+
+---
+
+## Option 2: Via This Azure Bridge
+
+Use the bridge when you want to:
+- Hide Azure credentials from the client (the bridge handles auth)
+- Add a proxy layer between Clawdbot and Azure
+- Use Azure Functions for request logging/transformation
+
+### Bridge Configuration Example
 
 Add this to your config file:
 
