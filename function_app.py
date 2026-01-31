@@ -227,22 +227,40 @@ def chat_completions(req: func.HttpRequest) -> func.HttpResponse:
                     resp.status_code
                 )
         
-        # Parse successful response
+        # Parse successful response and convert to pure OpenAI format
         try:
             response_json = resp.json()
             
-            # Add/override the model field to match what was requested
-            # This helps Moltbot track which model was used
-            if "model" not in response_json or not response_json["model"]:
-                response_json["model"] = deployment
+            # Convert Azure response to clean OpenAI format
+            openai_response = {
+                "id": response_json.get("id", "chatcmpl-" + os.urandom(12).hex()),
+                "object": "chat.completion",
+                "created": response_json.get("created", int(__import__('time').time())),
+                "model": incoming_model or deployment,
+                "choices": [],
+                "usage": response_json.get("usage", {})
+            }
+            
+            # Clean up choices - remove Azure-specific fields
+            for choice in response_json.get("choices", []):
+                clean_choice = {
+                    "index": choice.get("index", 0),
+                    "message": {
+                        "role": choice.get("message", {}).get("role", "assistant"),
+                        "content": choice.get("message", {}).get("content", "")
+                    },
+                    "finish_reason": choice.get("finish_reason", "stop")
+                }
+                openai_response["choices"].append(clean_choice)
             
             return func.HttpResponse(
-                json.dumps(response_json),
+                json.dumps(openai_response),
                 status_code=200,
                 mimetype="application/json",
                 headers={"Access-Control-Allow-Origin": "*"}
             )
-        except:
+        except Exception as e:
+            logging.error(f"Error parsing response: {e}")
             # If response isn't JSON, return as-is
             return func.HttpResponse(
                 resp.text,
