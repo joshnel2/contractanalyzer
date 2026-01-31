@@ -91,7 +91,7 @@ def health(req: func.HttpRequest) -> func.HttpResponse:
     
     config_status = {
         "status": "healthy",
-        "service": "Azure AI Foundry Bridge for Moltbot",
+        "service": "Azure AI Foundry Bridge for Clawdbot",
         "version": "1.0.0",
         "endpoint_configured": bool(endpoint),
         "api_key_configured": bool(api_key),
@@ -114,10 +114,10 @@ def chat_completions(req: func.HttpRequest) -> func.HttpResponse:
     OpenAI-compatible chat completions endpoint.
     Proxies requests to Azure AI Foundry.
     
-    This endpoint is compatible with Moltbot's OpenAI provider format.
-    Configure Moltbot with:
-    - baseUrl: https://your-function-app.azurewebsites.net/v1
-    - apiKey: any-value (or your configured key)
+    This endpoint is compatible with Clawdbot's OpenAI provider format.
+    Configure Clawdbot with:
+    - baseUrl: https://your-function-app.azurewebsites.net/api/v1
+    - apiKey: any-value (authentication handled by the bridge)
     - api: openai-completions
     """
     # Handle CORS preflight
@@ -132,7 +132,7 @@ def chat_completions(req: func.HttpRequest) -> func.HttpResponse:
             }
         )
     
-    logging.info("Moltbot chat completions request received")
+    logging.info("Clawdbot chat completions request received")
     
     endpoint, api_key, deployment = get_ai_config()
     
@@ -271,7 +271,7 @@ def list_models(req: func.HttpRequest) -> func.HttpResponse:
     OpenAI-compatible models list endpoint.
     Returns the configured deployment as an available model.
     
-    Moltbot uses this to discover available models.
+    Clawdbot uses this to discover available models.
     """
     # Handle CORS preflight
     if req.method == "OPTIONS":
