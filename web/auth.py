@@ -1,14 +1,17 @@
-"""Authentication module — JWT sessions with passwords stored in Table Storage."""
+"""Authentication module — JWT sessions with users stored in PostgreSQL."""
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from sqlalchemy import select
+
+from core.database import get_db
+from core.db_models import DemoRequest, User
 
 logger = logging.getLogger("strapped.auth")
 
@@ -41,18 +44,7 @@ def decode_token(token: str) -> dict[str, Any] | None:
 
 
 class UserStore:
-    """Thin CRUD layer for users in Azure Table Storage."""
-
-    _TABLE = "StrappedUsers"
-
-    def __init__(self, storage_conn: str) -> None:
-        from azure.data.tables import TableServiceClient
-        svc = TableServiceClient.from_connection_string(storage_conn)
-        try:
-            svc.create_table_if_not_exists(self._TABLE)
-        except Exception:
-            pass
-        self._table = svc.get_table_client(self._TABLE)
+    """User CRUD backed by PostgreSQL."""
 
     def create_user(
         self,
@@ -63,38 +55,44 @@ class UserStore:
     ) -> bool:
         if self.get_user(email):
             return False
-        entity = {
-            "PartitionKey": "user",
-            "RowKey": email.lower(),
-            "name": name,
-            "company": company,
-            "password_hash": hash_password(password),
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "is_active": True,
-        }
-        self._table.upsert_entity(entity)
+        with get_db() as db:
+            db.add(User(
+                email=email.lower(),
+                name=name,
+                company=company,
+                password_hash=hash_password(password),
+                is_active=True,
+            ))
         return True
 
     def authenticate(self, email: str, password: str) -> dict[str, Any] | None:
-        user = self.get_user(email)
-        if not user:
-            return None
-        if not verify_password(password, user.get("password_hash", "")):
-            return None
-        return user
+        with get_db() as db:
+            user = db.execute(
+                select(User).where(User.email == email.lower())
+            ).scalar_one_or_none()
+            if not user:
+                return None
+            if not verify_password(password, user.password_hash):
+                return None
+            return {
+                "email": user.email,
+                "name": user.name,
+                "company": user.company,
+            }
 
     def get_user(self, email: str) -> dict[str, Any] | None:
-        try:
-            entity = self._table.get_entity("user", email.lower())
+        with get_db() as db:
+            user = db.execute(
+                select(User).where(User.email == email.lower())
+            ).scalar_one_or_none()
+            if not user:
+                return None
             return {
-                "email": entity["RowKey"],
-                "name": entity.get("name", ""),
-                "company": entity.get("company", ""),
-                "created_at": entity.get("created_at", ""),
-                "is_active": entity.get("is_active", True),
+                "email": user.email,
+                "name": user.name,
+                "company": user.company,
+                "is_active": user.is_active,
             }
-        except Exception:
-            return None
 
     def save_demo_request(
         self,
@@ -103,14 +101,11 @@ class UserStore:
         company: str,
         message: str = "",
     ) -> None:
-        entity = {
-            "PartitionKey": "demo_request",
-            "RowKey": f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}_{email}",
-            "name": name,
-            "email": email,
-            "company": company,
-            "message": message,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "status": "pending",
-        }
-        self._table.upsert_entity(entity)
+        with get_db() as db:
+            db.add(DemoRequest(
+                name=name,
+                email=email,
+                company=company,
+                message=message,
+                status="pending",
+            ))

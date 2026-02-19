@@ -6,11 +6,10 @@ import os
 
 import pytest
 
-# Ensure minimal env vars are set for config import
+os.environ.setdefault("DATABASE_URL", "sqlite:///")
 os.environ.setdefault("AZURE_OPENAI_API_KEY", "test-key")
 os.environ.setdefault("AZURE_OPENAI_DEPLOYMENT_NAME", "test-deployment")
 os.environ.setdefault("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com/")
-os.environ.setdefault("AZURE_STORAGE_CONNECTION_STRING", "UseDevelopmentStorage=true")
 
 
 @pytest.fixture

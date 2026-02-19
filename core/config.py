@@ -1,9 +1,7 @@
 """Centralised configuration loaded from environment variables.
 
-All Azure secrets are read once at import time so every other module can
+All secrets are read once at import time so every other module can
 ``from core.config import settings`` without touching os.environ directly.
-
-Supports both VELA_ and STRAPPED_ env-var prefixes for backwards compat.
 """
 
 from __future__ import annotations
@@ -22,35 +20,31 @@ class StrappedSettings(BaseSettings):
         populate_by_name=True,
     )
 
-    # Azure OpenAI
-    azure_openai_api_key: str = Field(..., description="Azure OpenAI API key")
-    azure_openai_deployment_name: str = Field(..., description="Model deployment name")
-    azure_openai_endpoint: str = Field(..., description="Azure OpenAI resource endpoint")
-
-    # Azure Table Storage
-    azure_storage_connection_string: str = Field(
-        ..., description="Connection string for Azure Table Storage"
+    # PostgreSQL
+    database_url: str = Field(
+        default="postgresql://localhost:5432/strapped",
+        description="PostgreSQL connection string",
     )
+
+    # Azure OpenAI
+    azure_openai_api_key: str = Field(default="", description="Azure OpenAI API key")
+    azure_openai_deployment_name: str = Field(default="", description="Model deployment name")
+    azure_openai_endpoint: str = Field(default="", description="Azure OpenAI resource endpoint")
 
     # Microsoft Graph / Entra ID
     azure_tenant_id: str = Field(default="", description="Entra ID tenant")
     azure_client_id: str = Field(default="", description="App registration client ID")
     azure_client_secret: str = Field(default="", description="App registration secret")
 
-    # Vela operational
+    # Strapped operational
     strapped_mailbox: str = Field(
         default="strapped@yourcompany.com",
         alias="vela_mailbox",
         description="Shared mailbox Strapped AI monitors",
     )
-    strapped_log_level: str = Field(
-        default="INFO",
-        alias="vela_log_level",
-    )
+    strapped_log_level: str = Field(default="INFO", alias="vela_log_level")
     strapped_auto_approve_threshold: int = Field(
-        default=85,
-        ge=0,
-        le=100,
+        default=85, ge=0, le=100,
         alias="vela_auto_approve_threshold",
         description="Confidence % above which Strapped sends replies without escalation",
     )

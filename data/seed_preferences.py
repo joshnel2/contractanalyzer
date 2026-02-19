@@ -1,9 +1,9 @@
-"""Seed script — loads default_preferences.json into Azure Table Storage.
+"""Seed script — loads default_preferences.json into PostgreSQL.
 
 Usage:
     python data/seed_preferences.py
 
-Requires AZURE_STORAGE_CONNECTION_STRING in .env or environment.
+Requires DATABASE_URL in .env or environment.
 """
 
 from __future__ import annotations
@@ -18,23 +18,23 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from core.config import settings
+from core.database import init_db
 from core.models import AttorneyPreferences
 from core.table_storage import StrappedTableStorage
 
 
 def main() -> None:
+    init_db()
+
     data_file = Path(__file__).parent / "default_preferences.json"
     data = json.loads(data_file.read_text())
 
-    storage = StrappedTableStorage(settings.azure_storage_connection_string)
+    storage = StrappedTableStorage()
 
-    # Seed firm defaults
     print("Seeding firm-wide defaults ...")
     storage.upsert_firm_defaults(data["firm_defaults"])
     print("  Done.")
 
-    # Seed sample attorneys
     for attorney in data.get("sample_attorneys", []):
         email = attorney["attorney_email"]
         print(f"Seeding preferences for {email} ...")
@@ -42,7 +42,7 @@ def main() -> None:
         storage.upsert_preferences(prefs)
         print(f"  Done: {prefs.display_name}")
 
-    print(f"\nSeeded {len(data.get('sample_attorneys', []))} attorney profiles.")
+    print(f"\nSeeded {len(data.get('sample_attorneys', []))} profiles.")
 
 
 if __name__ == "__main__":

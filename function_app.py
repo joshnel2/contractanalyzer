@@ -31,6 +31,7 @@ load_dotenv()
 
 from core.config import settings
 from core.audit import AuditLogger
+from core.database import init_db
 from core.graph_client import StrappedGraphClient
 from core.models import InboundEmail, EmailIntent
 from core.table_storage import StrappedTableStorage
@@ -118,7 +119,8 @@ async def _process_email(payload: dict[str, Any]) -> dict[str, Any]:
     logger.info("Processing email: %s (from %s)", email.subject, email.from_address)
 
     # 2. Initialise infrastructure
-    storage = StrappedTableStorage(settings.azure_storage_connection_string)
+    init_db()
+    storage = StrappedTableStorage()
     graph = StrappedGraphClient()
     audit = AuditLogger(storage)
 

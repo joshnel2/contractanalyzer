@@ -1,164 +1,153 @@
-"""Azure Table Storage client for preferences, audit logs, and thread state.
+"""PostgreSQL-backed storage for preferences, audit logs, and thread state.
 
-Tables
-------
-* ``StrappedPreferences``  — one row per team member (PartitionKey = firm, RowKey = email)
-* ``StrappedAuditLog``     — append-only log (PartitionKey = email, RowKey = timestamp)
-* ``StrappedThreads``      — conversation thread tracking (PartitionKey = conversation_id)
+Replaces the original Azure Table Storage implementation.
+All public method signatures are preserved so callers are unaffected.
 """
 
 from __future__ import annotations
 
-import json
 import logging
-import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from azure.data.tables import TableClient, TableServiceClient, UpdateMode
+from sqlalchemy import select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
+from core.database import get_db
+from core.db_models import AuditLog, FirmDefault, Preference, Thread
 from core.models import AttorneyPreferences, AuditEntry
 
 logger = logging.getLogger("strapped.storage")
 
-_PREFS_TABLE = "StrappedPreferences"
-_AUDIT_TABLE = "StrappedAuditLog"
-_THREADS_TABLE = "StrappedThreads"
-
-_FIRM_PARTITION = "firm_default"
+_PREF_FIELDS = [
+    "display_name", "working_hours_start", "working_hours_end", "timezone",
+    "buffer_before_minutes", "buffer_after_minutes",
+    "preferred_duration_internal", "preferred_duration_client",
+    "priority_order", "response_tone", "auto_approve_threshold",
+    "blackout_dates", "blocked_times", "favorite_locations",
+    "default_virtual_platform", "escalation_email", "escalation_keywords",
+    "custom_signature", "court_block_calendars",
+]
 
 
 class StrappedTableStorage:
-    """Thin wrapper around Azure Table Storage for the three Strapped tables."""
+    """Thin facade over PostgreSQL for backward-compatible storage ops."""
 
-    def __init__(self, connection_string: str) -> None:
-        self._svc = TableServiceClient.from_connection_string(connection_string)
-        self._ensure_tables()
-
-    # ── Bootstrap ────────────────────────────────────────────────────────────
-
-    def _ensure_tables(self) -> None:
-        for name in (_PREFS_TABLE, _AUDIT_TABLE, _THREADS_TABLE):
-            try:
-                self._svc.create_table_if_not_exists(name)
-                logger.info("Table ready: %s", name)
-            except Exception:
-                logger.debug("Table %s already exists or creation deferred", name)
-
-    def _table(self, name: str) -> TableClient:
-        return self._svc.get_table_client(name)
-
-    # ── Preferences ──────────────────────────────────────────────────────────
+    # ── Preferences ──────────────────────────────────────────────────────
 
     def get_preferences(self, attorney_email: str) -> AttorneyPreferences:
-        """Return merged firm-default + per-attorney overrides."""
-        defaults = self._get_raw_prefs(_FIRM_PARTITION, "defaults")
-        overrides = self._get_raw_prefs("attorney", attorney_email)
-
-        merged = {**defaults, **overrides}
-        merged["attorney_email"] = attorney_email
+        """Return merged firm-default + per-user overrides."""
+        defaults = self._get_firm_defaults()
+        overrides = self._get_user_prefs(attorney_email)
+        merged = {**defaults, **overrides, "attorney_email": attorney_email}
         return AttorneyPreferences(**merged)
 
     def upsert_preferences(self, prefs: AttorneyPreferences) -> None:
-        entity = self._prefs_to_entity(prefs)
-        self._table(_PREFS_TABLE).upsert_entity(entity, mode=UpdateMode.MERGE)
+        data = {k: v for k, v in prefs.model_dump().items() if k in _PREF_FIELDS}
+        data["email"] = prefs.attorney_email
+        # Convert enum to string for storage
+        if hasattr(data.get("response_tone"), "value"):
+            data["response_tone"] = data["response_tone"].value
+        # Convert Priority enums in priority_order
+        if "priority_order" in data and data["priority_order"]:
+            data["priority_order"] = [
+                p.value if hasattr(p, "value") else p for p in data["priority_order"]
+            ]
+
+        with get_db() as db:
+            stmt = pg_insert(Preference).values(**data)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["email"],
+                set_={k: v for k, v in data.items() if k != "email"},
+            )
+            db.execute(stmt)
         logger.info("Preferences saved for %s", prefs.attorney_email)
 
     def upsert_firm_defaults(self, prefs: dict[str, Any]) -> None:
-        entity: dict[str, Any] = {
-            "PartitionKey": _FIRM_PARTITION,
-            "RowKey": "defaults",
-        }
-        for k, v in prefs.items():
-            entity[k] = json.dumps(v) if isinstance(v, (list, dict)) else v
-        self._table(_PREFS_TABLE).upsert_entity(entity, mode=UpdateMode.MERGE)
+        with get_db() as db:
+            for key, value in prefs.items():
+                stmt = pg_insert(FirmDefault).values(key=key, value=value)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["key"],
+                    set_={"value": value, "updated_at": datetime.now(timezone.utc)},
+                )
+                db.execute(stmt)
 
     def list_attorneys(self) -> list[str]:
-        """Return emails of all attorneys with stored preferences."""
-        rows = self._table(_PREFS_TABLE).query_entities(
-            "PartitionKey eq 'attorney'", select=["RowKey"]
-        )
-        return [r["RowKey"] for r in rows]
+        with get_db() as db:
+            rows = db.execute(select(Preference.email).order_by(Preference.email)).scalars().all()
+            return list(rows)
 
-    def _get_raw_prefs(self, pk: str, rk: str) -> dict[str, Any]:
-        try:
-            entity = self._table(_PREFS_TABLE).get_entity(pk, rk)
-            return self._entity_to_dict(entity)
-        except Exception:
-            return {}
+    def _get_firm_defaults(self) -> dict[str, Any]:
+        with get_db() as db:
+            rows = db.execute(select(FirmDefault)).scalars().all()
+            return {row.key: row.value for row in rows}
 
-    @staticmethod
-    def _prefs_to_entity(prefs: AttorneyPreferences) -> dict[str, Any]:
-        data = prefs.model_dump()
-        entity: dict[str, Any] = {
-            "PartitionKey": "attorney",
-            "RowKey": prefs.attorney_email,
-        }
-        for k, v in data.items():
-            entity[k] = json.dumps(v) if isinstance(v, (list, dict)) else v
-        return entity
+    def _get_user_prefs(self, email: str) -> dict[str, Any]:
+        with get_db() as db:
+            row = db.execute(
+                select(Preference).where(Preference.email == email)
+            ).scalar_one_or_none()
+            if not row:
+                return {}
+            result: dict[str, Any] = {}
+            for field in _PREF_FIELDS:
+                val = getattr(row, field, None)
+                if val is not None:
+                    result[field] = val
+            return result
 
-    @staticmethod
-    def _entity_to_dict(entity: dict[str, Any]) -> dict[str, Any]:
-        skip = {"PartitionKey", "RowKey", "Timestamp", "etag", "odata.etag", "odata.metadata"}
-        result: dict[str, Any] = {}
-        for k, v in entity.items():
-            if k in skip:
-                continue
-            if isinstance(v, str):
-                try:
-                    result[k] = json.loads(v)
-                except (json.JSONDecodeError, TypeError):
-                    result[k] = v
-            else:
-                result[k] = v
-        return result
-
-    # ── Audit Log ────────────────────────────────────────────────────────────
+    # ── Audit Log ────────────────────────────────────────────────────────
 
     def log_audit(self, entry: AuditEntry) -> None:
-        entity: dict[str, Any] = {
-            "PartitionKey": entry.partition_key,
-            "RowKey": entry.row_key or _audit_row_key(),
-            "timestamp": entry.timestamp.isoformat(),
-            "action": entry.action,
-            "message_id": entry.message_id,
-            "details": json.dumps(entry.details),
-            "outcome": entry.outcome,
-            "confidence": entry.confidence,
-        }
-        self._table(_AUDIT_TABLE).upsert_entity(entity, mode=UpdateMode.REPLACE)
+        with get_db() as db:
+            row = AuditLog(
+                attorney_email=entry.partition_key,
+                action=entry.action,
+                message_id=entry.message_id,
+                details=entry.details,
+                outcome=entry.outcome,
+                confidence=entry.confidence,
+            )
+            db.add(row)
         logger.debug("Audit logged: %s / %s", entry.action, entry.partition_key)
 
     def get_audit_trail(
         self, attorney_email: str, limit: int = 50
     ) -> list[dict[str, Any]]:
-        query = f"PartitionKey eq '{attorney_email}'"
-        rows = self._table(_AUDIT_TABLE).query_entities(query)
-        results = sorted(rows, key=lambda r: r.get("timestamp", ""), reverse=True)
-        return [self._entity_to_dict(r) for r in results[:limit]]
+        with get_db() as db:
+            rows = db.execute(
+                select(AuditLog)
+                .where(AuditLog.attorney_email == attorney_email)
+                .order_by(AuditLog.created_at.desc())
+                .limit(limit)
+            ).scalars().all()
+            return [
+                {
+                    "action": r.action,
+                    "message_id": r.message_id,
+                    "details": r.details,
+                    "outcome": r.outcome,
+                    "confidence": r.confidence,
+                    "timestamp": r.created_at.isoformat() if r.created_at else "",
+                }
+                for r in rows
+            ]
 
-    # ── Thread State ─────────────────────────────────────────────────────────
+    # ── Thread State ─────────────────────────────────────────────────────
 
     def save_thread(self, conversation_id: str, data: dict[str, Any]) -> None:
-        entity: dict[str, Any] = {
-            "PartitionKey": "thread",
-            "RowKey": conversation_id,
-            "data": json.dumps(data),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
-        self._table(_THREADS_TABLE).upsert_entity(entity, mode=UpdateMode.REPLACE)
+        with get_db() as db:
+            stmt = pg_insert(Thread).values(conversation_id=conversation_id, data=data)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["conversation_id"],
+                set_={"data": data, "updated_at": datetime.now(timezone.utc)},
+            )
+            db.execute(stmt)
 
     def get_thread(self, conversation_id: str) -> dict[str, Any] | None:
-        try:
-            entity = self._table(_THREADS_TABLE).get_entity("thread", conversation_id)
-            raw = entity.get("data", "{}")
-            return json.loads(raw) if isinstance(raw, str) else raw
-        except Exception:
-            return None
-
-
-def _audit_row_key() -> str:
-    """Reverse-chronological key so newest entries sort first."""
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%f")
-    return f"{ts}_{uuid.uuid4().hex[:8]}"
+        with get_db() as db:
+            row = db.execute(
+                select(Thread).where(Thread.conversation_id == conversation_id)
+            ).scalar_one_or_none()
+            return row.data if row else None

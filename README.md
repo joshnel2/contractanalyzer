@@ -19,21 +19,19 @@ Team member CCs strapped@yourcompany.com
 └────────┬────────────┘
          │
          ▼
-┌─────────────────────┐
-│  Azure Function App │  Runs Amplifier session with 14 custom tools
-│  (function_app.py)  │
-└────────┬────────────┘
+┌─────────────────────┐       ┌────────────────┐
+│  Azure Function App │──────▶│   PostgreSQL    │
+│  (email processing) │       │                │
+└─────────────────────┘       │  preferences   │
+                              │  audit log     │
+┌─────────────────────┐       │  users         │
+│   Azure Web App     │──────▶│  threads       │
+│  (landing + dash)   │       │  demo requests │
+└─────────────────────┘       └────────────────┘
          │
-    ┌────┴─────┐
-    ▼          ▼
-┌────────┐ ┌────────────┐
-│ Graph  │ │ Table      │
-│ API    │ │ Storage    │
-│        │ │            │
-│Calendar│ │Preferences │
-│  Mail  │ │Audit Logs  │
-│  Users │ │Thread State│
-└────────┘ └────────────┘
+         ▼
+    Microsoft Graph API
+    (Calendar · Mail · Users)
 ```
 
 1. **CC or forward** any scheduling email to `strapped@yourcompany.com`
@@ -42,8 +40,7 @@ Team member CCs strapped@yourcompany.com
 4. **Checks** Microsoft 365 calendars via Graph API
 5. **Suggests** 2-3 optimal time slots with professional reasoning
 6. **Sends** the reply automatically if confidence exceeds the threshold
-7. **Escalates** with clear context when uncertain or sensitive topics detected
-8. **Logs** every action with a full audit trail
+7. **Escalates** with clear context when uncertain
 
 Update preferences by email — no dashboard needed:
 ```
@@ -56,38 +53,27 @@ Strapped: change my tone to friendly
 
 ## Web App
 
-Strapped AI includes a full web application:
-
 | Route | Description |
 |-------|-------------|
-| `/` | Landing page — features, how it works, call to action |
+| `/` | Landing page — features, how it works, book a demo |
 | `/book-demo` | Demo booking form for prospects |
 | `/login` | Login for existing customers |
 | `/signup` | Account registration |
 | `/dashboard` | Preferences editor and activity log (protected) |
 
-Run locally:
-```bash
-pip install -r requirements.txt
-uvicorn web.app:app --reload --port 8000
-```
-
 ---
 
-## Architecture
-
-### Tech Stack
+## Tech Stack
 
 | Component | Technology |
 |-----------|-----------|
 | AI Harness | [Microsoft Amplifier](https://github.com/microsoft/amplifier) |
-| LLM Provider | Azure OpenAI |
+| LLM | Azure OpenAI |
+| Database | **PostgreSQL** (Azure Database for PostgreSQL) |
 | Calendar & Email | Microsoft Graph API |
-| Runtime | Azure Function App (Python 3.12) |
-| Email Ingestion | Azure Logic App |
-| State & Preferences | Azure Table Storage |
+| Email Processing | Azure Function App (Python 3.12) |
+| Web Frontend | Azure Web App + FastAPI + Jinja2 + Tailwind CSS |
 | Auth | JWT sessions + bcrypt passwords |
-| Web App | FastAPI + Jinja2 + Tailwind CSS |
 
 ---
 
@@ -95,132 +81,157 @@ uvicorn web.app:app --reload --port 8000
 
 ```
 strapped-ai/
-├── agents/
-│   └── strapped_ai.md              # Agent system prompt
-├── behaviors/
-│   └── strapped_ai.yaml            # Behavior bundle
+├── agents/strapped_ai.md           # Agent system prompt
 ├── bundles/                         # 5 tool bundle manifests
 ├── recipes/                         # 3 workflow recipes
 ├── tools/                           # 14 custom Amplifier tools
-│   ├── email_parser.py
-│   ├── calendar_tools.py
-│   ├── preferences_tools.py
-│   ├── reply_tools.py
-│   └── escalation_tools.py
-├── core/                            # Infrastructure
-│   ├── config.py
-│   ├── models.py
-│   ├── graph_client.py
-│   ├── table_storage.py
-│   └── audit.py
-├── web/                             # Web application
-│   ├── app.py                       # FastAPI app
+├── core/
+│   ├── config.py                    # Environment-based settings
+│   ├── database.py                  # SQLAlchemy engine + session
+│   ├── db_models.py                 # PostgreSQL ORM models
+│   ├── table_storage.py             # Storage facade (PostgreSQL)
+│   ├── models.py                    # Pydantic domain models
+│   ├── graph_client.py              # MS Graph API client
+│   └── audit.py                     # Audit logger
+├── web/
+│   ├── app.py                       # FastAPI application
 │   ├── auth.py                      # JWT auth + user store
-│   └── templates/
-│       ├── base.html
-│       ├── landing.html
-│       ├── login.html
-│       ├── signup.html
-│       ├── book_demo.html
-│       └── dashboard.html
-├── data/                            # Default prefs + seed script
-├── infrastructure/                  # Deploy script + Logic App ARM
-├── .github/workflows/deploy.yml     # CI/CD
-├── tests/                           # Test suite
-├── function_app.py                  # Azure Function entry point
+│   └── templates/                   # Jinja2 + Tailwind templates
+├── data/
+│   ├── default_preferences.json     # Sample preferences
+│   └── seed_preferences.py          # DB seed script
+├── infrastructure/
+│   ├── deploy.sh                    # Full Azure deployment
+│   └── logic_app_template.json      # Email trigger ARM template
+├── function_app.py                  # Azure Function (email processing)
+├── startup.sh                       # Azure Web App startup command
 ├── requirements.txt
 ├── .env.example
-└── README.md
+└── tests/
 ```
 
 ---
 
 ## Quick Start
 
-### 1. Clone and Configure
+### 1. Prerequisites
+
+- Python 3.12+
+- PostgreSQL running locally (or use Docker below)
+
+```bash
+# Start PostgreSQL with Docker
+docker run -d --name strapped-pg \
+  -e POSTGRES_USER=strapped \
+  -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_DB=strapped \
+  -p 5432:5432 postgres:16
+```
+
+### 2. Clone and Configure
 
 ```bash
 git clone <your-repo-url>
 cd strapped-ai
 cp .env.example .env
-# Fill in your Azure details in .env
+# Edit .env — at minimum set DATABASE_URL
 ```
 
-### 2. Install Dependencies
+### 3. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Seed Sample Data
+### 4. Initialise the Database
+
+```bash
+python -m core.database
+```
+
+### 5. Seed Sample Data
 
 ```bash
 python data/seed_preferences.py
 ```
 
-### 4. Run the Web App
+### 6. Run the Web App
 
 ```bash
 uvicorn web.app:app --reload --port 8000
 # Open http://localhost:8000
 ```
 
-### 5. Run the Function App
+### 7. Run the Function App (optional)
 
 ```bash
 func start
 # Endpoint: http://localhost:7071/api/strapped
 ```
 
-### 6. Test with a Sample Email
-
-```bash
-curl -X POST http://localhost:7071/api/strapped \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Id": "test-001",
-    "From": "client@external.com",
-    "To": "j.nakamura@yourcompany.com;strapped@yourcompany.com",
-    "Subject": "Meeting Request: Q1 Strategy Review",
-    "Body": "Can we schedule a 60-minute meeting next week?",
-    "DateTimeReceived": "2026-02-19T14:30:00Z"
-  }'
-```
-
----
-
-## Prerequisites
-
-### Azure Resources
-
-1. **Azure OpenAI** — Deploy a model and note the endpoint, key, and deployment name
-2. **Entra ID App Registration** — `Calendars.ReadWrite`, `Mail.Send`, `User.Read.All`
-3. **Shared Mailbox** — Create `strapped@yourcompany.com` in Exchange admin
-4. **Azure Storage Account** — For Table Storage
-5. **Azure Function App** — Python 3.12, Linux
-
-### Environment Variables
-
-Copy `.env.example` to `.env` and fill in:
-
-```
-AZURE_OPENAI_API_KEY=your-key
-AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4o
-AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-AZURE_STORAGE_CONNECTION_STRING=your-connection-string
-VELA_MAILBOX=strapped@yourcompany.com
-```
-
 ---
 
 ## Deploy to Azure
+
+### One-Command Deploy
+
+Creates PostgreSQL, Web App, and Function App:
 
 ```bash
 chmod +x infrastructure/deploy.sh
 ./infrastructure/deploy.sh
 ```
 
-Or use the included GitHub Actions workflow (`.github/workflows/deploy.yml`).
+### What Gets Created
+
+| Resource | Purpose |
+|----------|---------|
+| Azure Database for PostgreSQL | All data storage |
+| Azure Web App | Landing page, auth, dashboard |
+| Azure Function App | Email processing pipeline |
+| App Service Plan | Shared hosting for both apps |
+
+### CI/CD
+
+The `.github/workflows/deploy.yml` pipeline runs tests against a PostgreSQL service container, then deploys both the Web App and Function App.
+
+GitHub secrets needed:
+
+| Secret | Description |
+|--------|-------------|
+| `AZURE_CLIENT_ID` | Entra app registration |
+| `AZURE_TENANT_ID` | Azure AD tenant |
+| `AZURE_SUBSCRIPTION_ID` | Subscription |
+
+---
+
+## Database Schema
+
+| Table | Purpose |
+|-------|---------|
+| `users` | Web app authentication |
+| `preferences` | Per-person scheduling preferences |
+| `firm_defaults` | Firm-wide default values |
+| `audit_log` | Every action Strapped takes |
+| `threads` | Conversation thread state |
+| `demo_requests` | Demo booking submissions |
+
+Tables are auto-created on startup via SQLAlchemy `create_all()`.
+
+---
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `AZURE_OPENAI_API_KEY` | For assistant | Azure OpenAI key |
+| `AZURE_OPENAI_DEPLOYMENT_NAME` | For assistant | Model deployment name |
+| `AZURE_OPENAI_ENDPOINT` | For assistant | OpenAI resource URL |
+| `AZURE_TENANT_ID` | For Graph API | Entra ID tenant |
+| `AZURE_CLIENT_ID` | For Graph API | App registration |
+| `AZURE_CLIENT_SECRET` | For Graph API | App secret |
+| `VELA_MAILBOX` | For assistant | Shared mailbox address |
 
 ---
 

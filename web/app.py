@@ -26,6 +26,7 @@ from fastapi.templating import Jinja2Templates
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.config import settings
+from core.database import init_db
 from core.models import AttorneyPreferences, Tone
 from core.table_storage import StrappedTableStorage
 from web.auth import UserStore, create_token, decode_token
@@ -33,6 +34,11 @@ from web.auth import UserStore, create_token, decode_token
 logger = logging.getLogger("strapped.web")
 
 app = FastAPI(title="Strapped AI", docs_url=None, redoc_url=None)
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    init_db()
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 _STATIC_DIR = Path(__file__).parent / "static"
@@ -42,23 +48,17 @@ templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 if _STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
-# ── Lazy singletons ─────────────────────────────────────────────────────────
+# ── Singletons ───────────────────────────────────────────────────────────────
 
-_user_store: UserStore | None = None
-_storage: StrappedTableStorage | None = None
+_user_store = UserStore()
+_storage = StrappedTableStorage()
 
 
 def _get_user_store() -> UserStore:
-    global _user_store
-    if _user_store is None:
-        _user_store = UserStore(settings.azure_storage_connection_string)
     return _user_store
 
 
 def _get_storage() -> StrappedTableStorage:
-    global _storage
-    if _storage is None:
-        _storage = StrappedTableStorage(settings.azure_storage_connection_string)
     return _storage
 
 
