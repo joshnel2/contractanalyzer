@@ -1,11 +1,11 @@
 bundle:
-  name: vela-preferences-manager
+  name: strapped-preferences-manager
   version: 1.0.0
   description: >
     Preferences management bundle — tools for reading, updating,
     and interpreting attorney scheduling preferences stored in
     Azure Table Storage.
-  tags: ["vela", "preferences", "config"]
+  tags: ["strapped", "preferences", "config"]
 
 tools:
   - name: get_preferences

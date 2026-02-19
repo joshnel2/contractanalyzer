@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Strapped AI{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50:'#eef4ff',100:'#d9e5ff',200:'#bcd2ff',300:'#8eb5ff',400:'#598fff',500:'#3366ff',600:'#1a44f5',700:'#1535e1',800:'#172db6',900:'#18298f',DEFAULT:'#3366ff' },
+            dark:  { 50:'#f5f6f8',100:'#e8eaef',200:'#d5d8e3',300:'#b2b7c9',400:'#8990a9',500:'#6b7290',600:'#575d77',700:'#494e64',800:'#3d4054',900:'#2d2f3f',950:'#1a1b27',DEFAULT:'#1a1b27' },
+          },
+          fontFamily: { sans: ['Inter','system-ui','sans-serif'] },
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    .gradient-text { background: linear-gradient(135deg, #3366ff 0%, #8b5cf6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .glow { box-shadow: 0 0 60px rgba(51,102,255,0.15); }
+    .card-hover { transition: transform 0.2s, box-shadow 0.2s; }
+    .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,0.12); }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body class="bg-white text-gray-900 antialiased font-sans">
+
+  <!-- Nav -->
+  <nav class="fixed w-full top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-gray-100">
+    <div class="max-w-7xl mx-auto flex items-center justify-between px-6 h-16">
+      <a href="/" class="flex items-center gap-2 text-xl font-bold">
+        <span class="w-8 h-8 rounded-lg bg-brand flex items-center justify-center text-white text-sm font-extrabold">S</span>
+        <span>Strapped <span class="gradient-text">AI</span></span>
+      </a>
+      <div class="hidden md:flex items-center gap-8 text-sm font-medium text-gray-600">
+        <a href="/#features" class="hover:text-gray-900 transition">Features</a>
+        <a href="/#how-it-works" class="hover:text-gray-900 transition">How It Works</a>
+        <a href="/book-demo" class="hover:text-gray-900 transition">Book a Demo</a>
+      </div>
+      <div class="flex items-center gap-3">
+        {% if user %}
+          <a href="/dashboard" class="text-sm font-medium text-gray-600 hover:text-gray-900 transition">Dashboard</a>
+          <a href="/logout" class="text-sm font-medium text-gray-400 hover:text-gray-600 transition">Log out</a>
+        {% else %}
+          <a href="/login" class="text-sm font-medium text-gray-600 hover:text-gray-900 transition">Log in</a>
+          <a href="/book-demo" class="inline-flex items-center px-4 py-2 rounded-lg bg-brand text-white text-sm font-semibold hover:bg-brand-700 transition shadow-sm">Book a Demo</a>
+        {% endif %}
+      </div>
+    </div>
+  </nav>
+
+  <main class="pt-16">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-dark-950 text-gray-400 mt-auto">
+    <div class="max-w-7xl mx-auto px-6 py-12 flex flex-col md:flex-row items-center justify-between gap-6">
+      <div class="flex items-center gap-2 text-white font-bold text-lg">
+        <span class="w-7 h-7 rounded-md bg-brand flex items-center justify-center text-white text-xs font-extrabold">S</span>
+        Strapped AI
+      </div>
+      <div class="flex gap-8 text-sm">
+        <a href="/#features" class="hover:text-white transition">Features</a>
+        <a href="/book-demo" class="hover:text-white transition">Book a Demo</a>
+        <a href="/login" class="hover:text-white transition">Log in</a>
+      </div>
+      <p class="text-xs text-gray-500">&copy; {{ 2026 }} Strapped AI. All rights reserved.</p>
+    </div>
+  </footer>
+
+</body>
+</html>

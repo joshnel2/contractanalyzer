@@ -4,8 +4,8 @@ description: >
   Parses intent → loads preferences → checks escalation →
   queries calendar → proposes slots → drafts reply → sends or escalates.
 version: "1.0.0"
-author: "Vela-Law Team"
-tags: ["scheduling", "email", "calendar", "vela"]
+author: "Strapped-Law Team"
+  tags: ["scheduling", "email", "calendar", "strapped"]
 
 context:
   email_json: ""
@@ -14,9 +14,9 @@ steps:
   # ── Step 1: Parse the inbound email ────────────────────────────────────
   - id: "parse-email"
     type: "agent"
-    agent: "vela-law"
+    agent: "strapped-ai"
     prompt: |
-      An inbound email has arrived at the Vela mailbox. Parse it using the
+      An inbound email has arrived at the Strapped mailbox. Parse it using the
       `parse_email` tool and then `identify_attorney` to determine who is
       requesting the scheduling.
 
@@ -34,13 +34,13 @@ steps:
   # ── Step 2: Load attorney preferences ──────────────────────────────────
   - id: "load-preferences"
     type: "agent"
-    agent: "vela-law"
+    agent: "strapped-ai"
     prompt: |
       The requesting attorney has been identified from the previous step:
       {{parsed_result}}
 
       Use `get_preferences` to load their full preference profile.
-      If the email contained any "Vela: ..." preference commands, process
+      If the email contained any "Strapped: ..." preference commands, process
       them NOW using `parse_preference_command` and `update_preferences`.
       Confirm any preference changes.
     output: "preferences_result"
@@ -49,7 +49,7 @@ steps:
   # ── Step 3: Evaluate escalation ────────────────────────────────────────
   - id: "evaluate-escalation"
     type: "agent"
-    agent: "vela-law"
+    agent: "strapped-ai"
     prompt: |
       Using the parse results and preferences loaded so far:
 
@@ -72,7 +72,7 @@ steps:
   - id: "find-slots"
     condition: "escalation not triggered"
     type: "agent"
-    agent: "vela-law"
+    agent: "strapped-ai"
     prompt: |
       Escalation check passed:
       {{escalation_result}}
@@ -92,7 +92,7 @@ steps:
   - id: "draft-and-send"
     condition: "slots found"
     type: "agent"
-    agent: "vela-law"
+    agent: "strapped-ai"
     prompt: |
       Available slots:
       {{slots_result}}
@@ -104,7 +104,7 @@ steps:
       Use `draft_reply` to compose a polished scheduling email proposing
       2-3 of the best slots. Match the attorney's configured tone.
 
-      Then use `send_reply` to send it from the Vela mailbox.
+      Then use `send_reply` to send it from the Strapped mailbox.
 
       Log the action in your response.
     output: "send_result"

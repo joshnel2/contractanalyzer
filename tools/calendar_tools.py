@@ -14,16 +14,16 @@ from typing import Any
 
 from amplifier_core import ToolResult
 
-from core.graph_client import VelaGraphClient
+from core.graph_client import StrappedGraphClient
 from core.models import AttorneyPreferences
 
-logger = logging.getLogger("vela.tools.calendar")
+logger = logging.getLogger("strapped.tools.calendar")
 
 
 class CheckCalendarTool:
     """Retrieve upcoming events for an attorney within a date range."""
 
-    def __init__(self, graph: VelaGraphClient) -> None:
+    def __init__(self, graph: StrappedGraphClient) -> None:
         self._graph = graph
 
     @property
@@ -69,7 +69,7 @@ class CheckCalendarTool:
 class FindAvailableSlotsTool:
     """Find open time slots on a given date for an attorney."""
 
-    def __init__(self, graph: VelaGraphClient) -> None:
+    def __init__(self, graph: StrappedGraphClient) -> None:
         self._graph = graph
 
     @property
@@ -129,7 +129,7 @@ class FindAvailableSlotsTool:
 class CreateCalendarEventTool:
     """Create a calendar event via Graph API."""
 
-    def __init__(self, graph: VelaGraphClient) -> None:
+    def __init__(self, graph: StrappedGraphClient) -> None:
         self._graph = graph
 
     @property
@@ -190,7 +190,7 @@ class CreateCalendarEventTool:
 class CheckMultiPartyAvailabilityTool:
     """Find slots where multiple attendees are all free."""
 
-    def __init__(self, graph: VelaGraphClient) -> None:
+    def __init__(self, graph: StrappedGraphClient) -> None:
         self._graph = graph
 
     @property

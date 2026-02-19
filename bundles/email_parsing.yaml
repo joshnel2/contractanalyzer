@@ -1,11 +1,11 @@
 bundle:
-  name: vela-email-parsing
+  name: strapped-email-parsing
   version: 1.0.0
   description: >
     Email parsing bundle — tools for extracting scheduling intent,
     identifying attorneys, and detecting preference commands from
     inbound emails.
-  tags: ["vela", "email", "parsing", "nlp"]
+  tags: ["strapped", "email", "parsing", "nlp"]
 
 # Tools are registered programmatically in function_app.py because they
 # are custom Python classes (not Amplifier marketplace modules).

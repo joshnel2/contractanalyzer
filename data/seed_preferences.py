@@ -20,14 +20,14 @@ load_dotenv()
 
 from core.config import settings
 from core.models import AttorneyPreferences
-from core.table_storage import VelaTableStorage
+from core.table_storage import StrappedTableStorage
 
 
 def main() -> None:
     data_file = Path(__file__).parent / "default_preferences.json"
     data = json.loads(data_file.read_text())
 
-    storage = VelaTableStorage(settings.azure_storage_connection_string)
+    storage = StrappedTableStorage(settings.azure_storage_connection_string)
 
     # Seed firm defaults
     print("Seeding firm-wide defaults ...")

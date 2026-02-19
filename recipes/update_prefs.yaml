@@ -4,7 +4,7 @@ description: >
   commands (e.g. "Vela: set my buffer to 30 min").
 version: "1.0.0"
 author: "Vela-Law Team"
-tags: ["preferences", "update", "vela"]
+  tags: ["preferences", "update", "strapped"]
 
 context:
   email_json: ""
@@ -12,13 +12,13 @@ context:
 steps:
   - id: "parse-commands"
     type: "agent"
-    agent: "vela-law"
+    agent: "strapped-ai"
     prompt: |
       This email contains preference-update commands. Parse the email:
       {{email_json}}
 
       Use `identify_attorney` to find the requesting attorney, then scan
-      the body for all "Vela: ..." commands. For each command:
+      the body for all "Strapped: ..." commands. For each command:
       1. Use `parse_preference_command` to interpret it
       2. Use `update_preferences` to apply the change
       3. Collect all changes for the confirmation reply
@@ -27,7 +27,7 @@ steps:
 
   - id: "confirm-updates"
     type: "agent"
-    agent: "vela-law"
+    agent: "strapped-ai"
     prompt: |
       Preference updates applied:
       {{update_result}}

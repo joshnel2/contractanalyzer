@@ -1,6 +1,6 @@
 """Preferences-management Amplifier tools.
 
-Allows Vela (and the LLM agent) to read, update, and interpret attorney
+Allows Strapped (and the LLM agent) to read, update, and interpret
 preferences stored in Azure Table Storage.
 """
 
@@ -13,15 +13,15 @@ from typing import Any
 from amplifier_core import ToolResult
 
 from core.models import AttorneyPreferences
-from core.table_storage import VelaTableStorage
+from core.table_storage import StrappedTableStorage
 
-logger = logging.getLogger("vela.tools.preferences")
+logger = logging.getLogger("strapped.tools.preferences")
 
 
 class GetPreferencesTool:
     """Load the merged (firm-default + override) preferences for an attorney."""
 
-    def __init__(self, storage: VelaTableStorage) -> None:
+    def __init__(self, storage: StrappedTableStorage) -> None:
         self._storage = storage
 
     @property
@@ -64,7 +64,7 @@ class GetPreferencesTool:
 class UpdatePreferencesTool:
     """Apply one or more preference changes for an attorney."""
 
-    def __init__(self, storage: VelaTableStorage) -> None:
+    def __init__(self, storage: StrappedTableStorage) -> None:
         self._storage = storage
 
     @property
@@ -126,10 +126,10 @@ class UpdatePreferencesTool:
 class ParsePreferenceCommandTool:
     """Interpret natural-language preference commands from email bodies.
 
-    Attorneys can embed commands like:
-        "Vela: set my buffer to 30 min"
-        "Vela: prefer 45-min internal calls"
-        "Vela: block Fridays after 3pm"
+    Team members can embed commands like:
+        "Strapped: set my buffer to 30 min"
+        "Strapped: prefer 45-min internal calls"
+        "Strapped: block Fridays after 3pm"
     """
 
     @property
@@ -139,7 +139,7 @@ class ParsePreferenceCommandTool:
     @property
     def description(self) -> str:
         return (
-            "Parse a natural-language 'Vela: ...' preference command and return "
+            "Parse a natural-language 'Strapped: ...' preference command and return "
             "the structured preference update. Use this when the email contains "
             "preference-update instructions."
         )
@@ -151,7 +151,7 @@ class ParsePreferenceCommandTool:
             "properties": {
                 "command": {
                     "type": "string",
-                    "description": "The raw 'Vela: ...' command text",
+                    "description": "The raw 'Strapped: ...' command text",
                 },
                 "attorney_email": {"type": "string"},
             },
@@ -161,7 +161,7 @@ class ParsePreferenceCommandTool:
     async def execute(self, input: dict[str, Any]) -> ToolResult:
         command = input.get("command", "").strip()
         prompt = f"""\
-Parse this Vela preference command into a JSON object mapping preference
+Parse this Strapped preference command into a JSON object mapping preference
 field names to their new values.
 
 Valid fields: working_hours_start, working_hours_end, buffer_before_minutes,
@@ -178,7 +178,7 @@ If the command is unclear, return: {{"_error": "Could not parse command"}}
         return ToolResult(
             success=True,
             output=json.dumps({
-                "_vela_internal": "llm_prompt",
+                "_strapped_internal": "llm_prompt",
                 "prompt": prompt,
                 "instruction": "Execute this prompt and return the JSON.",
             }),
@@ -188,7 +188,7 @@ If the command is unclear, return: {{"_error": "Could not parse command"}}
 class ListAttorneysTool:
     """List all attorneys with stored preferences."""
 
-    def __init__(self, storage: VelaTableStorage) -> None:
+    def __init__(self, storage: StrappedTableStorage) -> None:
         self._storage = storage
 
     @property
@@ -197,7 +197,7 @@ class ListAttorneysTool:
 
     @property
     def description(self) -> str:
-        return "List all attorney email addresses that have preferences stored in Vela."
+        return "List all team member email addresses that have preferences stored."
 
     @property
     def input_schema(self) -> dict:

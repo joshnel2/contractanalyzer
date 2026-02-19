@@ -1,11 +1,11 @@
 bundle:
-  name: vela-calendar-orchestration
+  name: strapped-calendar-orchestration
   version: 1.0.0
   description: >
     Calendar orchestration bundle — tools for reading calendars,
     finding available slots, creating events, and checking
     multi-party availability via Microsoft Graph API.
-  tags: ["vela", "calendar", "graph", "scheduling"]
+  tags: ["strapped", "calendar", "graph", "scheduling"]
 
 tools:
   - name: check_calendar

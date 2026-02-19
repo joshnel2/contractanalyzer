@@ -4,7 +4,7 @@ description: >
   Vela cannot confidently handle a scheduling request.
 version: "1.0.0"
 author: "Vela-Law Team"
-tags: ["escalation", "compliance", "vela"]
+  tags: ["escalation", "compliance", "strapped"]
 
 context:
   attorney_email: ""
@@ -16,7 +16,7 @@ context:
 steps:
   - id: "compose-escalation"
     type: "agent"
-    agent: "vela-law"
+    agent: "strapped-ai"
     prompt: |
       An escalation has been triggered for the following request:
 

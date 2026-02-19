@@ -1,4 +1,4 @@
-"""Shared fixtures for Vela-Law tests."""
+"""Shared fixtures for Strapped AI tests."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ def sample_email_payload() -> dict:
         "ConversationId": "conv-123",
         "From": "jsmith@externalclient.com",
         "FromName": "John Smith",
-        "To": "j.nakamura@ourfirm.onmicrosoft.com;vela@ourfirm.onmicrosoft.com",
+        "To": "j.nakamura@yourcompany.com;strapped@yourcompany.com",
         "Cc": "",
         "Subject": "Meeting Request: Q1 Strategy Review",
         "Body": (
@@ -42,12 +42,12 @@ def sample_prefs_command_payload() -> dict:
     return {
         "Id": "AAMkAGI2TG94BBB=",
         "ConversationId": "conv-456",
-        "From": "j.nakamura@ourfirm.onmicrosoft.com",
-        "To": "vela@ourfirm.onmicrosoft.com",
+        "From": "j.nakamura@yourcompany.com",
+        "To": "strapped@yourcompany.com",
         "Subject": "Preference update",
         "Body": (
-            "Vela: set my buffer to 30 min\n"
-            "Vela: prefer 45-min internal calls\n"
+            "Strapped: set my buffer to 30 min\n"
+            "Strapped: prefer 45-min internal calls\n"
             "Thanks!"
         ),
         "DateTimeReceived": "2026-02-19T15:00:00Z",
@@ -59,7 +59,7 @@ def sample_prefs_command_payload() -> dict:
 @pytest.fixture
 def sample_preferences() -> dict:
     return {
-        "attorney_email": "j.nakamura@ourfirm.onmicrosoft.com",
+        "attorney_email": "j.nakamura@yourcompany.com",
         "display_name": "Jun Nakamura",
         "working_hours_start": "07:30",
         "working_hours_end": "17:30",

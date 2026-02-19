@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────────────────────
-# Vela-Law — Azure Deployment Script
+# Strapped AI — Azure Deployment Script
 #
 # Prerequisites:
 #   1. Azure CLI installed and logged in  (az login)
@@ -15,15 +15,15 @@ set -euo pipefail
 
 # ── Configuration (edit these) ───────────────────────────────────────────────
 
-RESOURCE_GROUP="${VELA_RESOURCE_GROUP:-vela-law-rg}"
-LOCATION="${VELA_LOCATION:-eastus}"
-FUNC_APP_NAME="${VELA_FUNC_APP_NAME:-vela-law-func}"
-STORAGE_ACCOUNT="${VELA_STORAGE_ACCOUNT:-velalawstorage}"
-LOGIC_APP_NAME="${VELA_LOGIC_APP_NAME:-vela-law-email-trigger}"
-SHARED_MAILBOX="${VELA_MAILBOX:-vela@ourfirm.onmicrosoft.com}"
+RESOURCE_GROUP="${STRAPPED_RESOURCE_GROUP:-strapped-ai-rg}"
+LOCATION="${STRAPPED_LOCATION:-eastus}"
+FUNC_APP_NAME="${STRAPPED_FUNC_APP_NAME:-strapped-ai-func}"
+STORAGE_ACCOUNT="${STRAPPED_STORAGE_ACCOUNT:-strappedaistorage}"
+LOGIC_APP_NAME="${STRAPPED_LOGIC_APP_NAME:-strapped-ai-email-trigger}"
+SHARED_MAILBOX="${VELA_MAILBOX:-strapped@yourcompany.com}"
 
 echo "╔══════════════════════════════════════════════════════════╗"
-echo "║           Vela-Law Azure Deployment                      ║"
+echo "║           Strapped AI Azure Deployment                    ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
 

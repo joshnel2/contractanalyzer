@@ -1,4 +1,4 @@
-name: Deploy Vela-Law to Azure Functions
+name: Deploy Strapped AI to Azure Functions
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  AZURE_FUNCTIONAPP_NAME: vela-law-func
+  AZURE_FUNCTIONAPP_NAME: strapped-ai-func
   PYTHON_VERSION: "3.12"
 
 jobs:

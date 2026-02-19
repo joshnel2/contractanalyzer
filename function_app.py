@@ -1,16 +1,16 @@
-"""Vela-Law Azure Function App — HTTP trigger entry point.
+"""Strapped AI Azure Function App — HTTP trigger entry point.
 
-This is the production runtime. A Logic App watches the Vela shared mailbox
-and POSTs each inbound email as JSON to the ``/api/vela`` endpoint. The
-function spins up an Amplifier session with all Vela tools mounted, processes
-the email, and either auto-replies or escalates.
+This is the production runtime. A Logic App watches the Strapped shared
+mailbox and POSTs each inbound email as JSON to the ``/api/strapped``
+endpoint. The function spins up an Amplifier session with all tools mounted,
+processes the email, and either auto-replies or escalates.
 
 Architecture
 ────────────
-  Logic App  →  POST /api/vela  →  Amplifier Session  →  Graph API
-                                        │
-                                   Azure Table Storage
-                                  (prefs, audit, threads)
+  Logic App  →  POST /api/strapped  →  Amplifier Session  →  Graph API
+                                             │
+                                       Azure Table Storage
+                                      (prefs, audit, threads)
 """
 
 from __future__ import annotations
@@ -31,9 +31,9 @@ load_dotenv()
 
 from core.config import settings
 from core.audit import AuditLogger
-from core.graph_client import VelaGraphClient
+from core.graph_client import StrappedGraphClient
 from core.models import InboundEmail, EmailIntent
-from core.table_storage import VelaTableStorage
+from core.table_storage import StrappedTableStorage
 
 from tools.email_parser import EmailParserTool, IdentifyAttorneyTool
 from tools.calendar_tools import (
@@ -54,20 +54,20 @@ from tools.escalation_tools import EvaluateEscalationTool, SendEscalationTool
 # ── Logging ──────────────────────────────────────────────────────────────────
 
 logging.basicConfig(
-    level=getattr(logging, settings.vela_log_level, logging.INFO),
+    level=getattr(logging, settings.strapped_log_level, logging.INFO),
     format="%(asctime)s [%(name)s] %(levelname)s %(message)s",
 )
-logger = logging.getLogger("vela.function")
+logger = logging.getLogger("strapped.function")
 
 # ── Azure Function App ───────────────────────────────────────────────────────
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
 
-@app.route(route="vela", methods=["POST"])
-async def vela_endpoint(req: func.HttpRequest) -> func.HttpResponse:
+@app.route(route="strapped", methods=["POST"])
+async def strapped_endpoint(req: func.HttpRequest) -> func.HttpResponse:
     """Main entry point — receives email JSON from Logic App."""
-    logger.info("Vela endpoint invoked")
+    logger.info("Strapped endpoint invoked")
 
     try:
         body = req.get_json()
@@ -86,7 +86,7 @@ async def vela_endpoint(req: func.HttpRequest) -> func.HttpResponse:
             mimetype="application/json",
         )
     except Exception:
-        logger.exception("Unhandled error in vela_endpoint")
+        logger.exception("Unhandled error in strapped_endpoint")
         return func.HttpResponse(
             json.dumps({
                 "error": "Internal processing error",
@@ -97,7 +97,7 @@ async def vela_endpoint(req: func.HttpRequest) -> func.HttpResponse:
         )
 
 
-@app.route(route="vela/health", methods=["GET"])
+@app.route(route="strapped/health", methods=["GET"])
 async def health_check(req: func.HttpRequest) -> func.HttpResponse:
     """Lightweight health probe for monitoring."""
     return func.HttpResponse(
@@ -111,15 +111,15 @@ async def health_check(req: func.HttpRequest) -> func.HttpResponse:
 
 
 async def _process_email(payload: dict[str, Any]) -> dict[str, Any]:
-    """Orchestrate the full Vela-Law pipeline for one inbound email."""
+    """Orchestrate the full Strapped AI pipeline for one inbound email."""
 
     # 1. Normalise the inbound email
     email = _normalise_email(payload)
     logger.info("Processing email: %s (from %s)", email.subject, email.from_address)
 
     # 2. Initialise infrastructure
-    storage = VelaTableStorage(settings.azure_storage_connection_string)
-    graph = VelaGraphClient()
+    storage = StrappedTableStorage(settings.azure_storage_connection_string)
+    graph = StrappedGraphClient()
     audit = AuditLogger(storage)
 
     audit.email_received(email.from_address, email.message_id, email.subject)
@@ -162,13 +162,13 @@ async def _process_email(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _build_session(
-    storage: VelaTableStorage,
-    graph: VelaGraphClient,
+    storage: StrappedTableStorage,
+    graph: StrappedGraphClient,
 ) -> tuple[Any, str]:
     """Construct and return a fully-armed Amplifier session.
 
     Loads the foundation bundle, composes with Azure OpenAI provider,
-    and mounts all Vela custom tools.
+    and mounts all Strapped custom tools.
     """
     from amplifier_core import AmplifierSession
     from amplifier_foundation import Bundle, load_bundle
@@ -196,8 +196,8 @@ async def _build_session(
         ],
     )
 
-    # Load the Vela-Law agent instruction from the agent markdown file
-    agent_md = Path(__file__).parent / "agents" / "vela_law.md"
+    # Load the Strapped AI agent instruction from the agent markdown file
+    agent_md = Path(__file__).parent / "agents" / "strapped_ai.md"
     agent_instruction = ""
     if agent_md.exists():
         raw = agent_md.read_text()
@@ -208,9 +208,9 @@ async def _build_session(
         else:
             agent_instruction = raw
 
-    # Compose the Vela bundle with instruction
-    vela_bundle = Bundle(
-        name="vela-law",
+    # Compose the Strapped bundle with instruction
+    strapped_bundle = Bundle(
+        name="strapped-ai",
         version="1.0.0",
         instruction=agent_instruction,
         session={
@@ -227,13 +227,13 @@ async def _build_session(
         },
     )
 
-    composed = foundation.compose(provider_bundle).compose(vela_bundle)
+    composed = foundation.compose(provider_bundle).compose(strapped_bundle)
 
     # Prepare and create session
     prepared = await composed.prepare()
     session = await prepared.create_session(session_cwd=Path.cwd())
 
-    # Mount all custom Vela tools
+    # Mount all custom Strapped tools
     coordinator = session.coordinator
 
     # Email parsing tools
@@ -260,7 +260,7 @@ async def _build_session(
     await coordinator.mount("tools", DraftReplyTool(), name="draft_reply")
     await coordinator.mount(
         "tools",
-        SendReplyTool(graph, settings.vela_mailbox),
+        SendReplyTool(graph, settings.strapped_mailbox),
         name="send_reply",
     )
 
@@ -268,7 +268,7 @@ async def _build_session(
     await coordinator.mount("tools", EvaluateEscalationTool(), name="evaluate_escalation")
     await coordinator.mount(
         "tools",
-        SendEscalationTool(graph, settings.vela_mailbox),
+        SendEscalationTool(graph, settings.strapped_mailbox),
         name="send_escalation",
     )
 
@@ -280,12 +280,7 @@ async def _build_session(
 
 
 def _normalise_email(payload: dict[str, Any]) -> InboundEmail:
-    """Map the Logic App JSON payload to our InboundEmail model.
-
-    The Logic App connector for Office 365 produces keys like:
-        From, To, Cc, Subject, Body, DateTimeReceived, Id, ConversationId, etc.
-    We normalise these into our Pydantic model.
-    """
+    """Map the Logic App JSON payload to our InboundEmail model."""
     return InboundEmail(
         message_id=payload.get("Id") or payload.get("message_id") or "",
         conversation_id=payload.get("ConversationId") or payload.get("conversation_id") or "",
@@ -326,9 +321,9 @@ def _extract_addresses(raw: Any) -> list[str]:
 
 
 def _build_master_prompt(email: InboundEmail) -> str:
-    """Compose the master prompt that kicks off the Vela agent loop."""
+    """Compose the master prompt that kicks off the Strapped agent loop."""
     return f"""\
-A new email has arrived at the Vela shared mailbox. Process it following
+A new email has arrived at the Strapped shared mailbox. Process it following
 your standard workflow.
 
 ── INBOUND EMAIL ──
@@ -348,11 +343,11 @@ Body:
 Follow your standard workflow:
 1. Parse the email with `parse_email` and `identify_attorney`
 2. Load the attorney's preferences with `get_preferences`
-3. Process any "Vela: ..." preference commands
+3. Process any "Strapped: ..." preference commands
 4. Evaluate escalation with `evaluate_escalation`
 5. If no escalation: find available slots with `find_available_slots`
 6. Draft a reply with `draft_reply`
 7. Send it with `send_reply` (if confidence meets threshold) or escalate
 
-The Vela shared mailbox is: {settings.vela_mailbox}
+The Strapped shared mailbox is: {settings.strapped_mailbox}
 """

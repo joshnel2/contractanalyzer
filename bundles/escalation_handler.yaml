@@ -1,11 +1,11 @@
 bundle:
-  name: vela-escalation-handler
+  name: strapped-escalation-handler
   version: 1.0.0
   description: >
     Escalation handler bundle — tools for evaluating whether a
     request needs human oversight and notifying the attorney with
     full context when it does.
-  tags: ["vela", "escalation", "compliance"]
+  tags: ["strapped", "escalation", "compliance"]
 
 tools:
   - name: evaluate_escalation

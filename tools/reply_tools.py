@@ -1,7 +1,7 @@
 """Reply-drafting Amplifier tools.
 
 Generates professional, tone-appropriate scheduling replies and sends
-them through the Graph API from the Vela shared mailbox.
+them through the Graph API from the Strapped shared mailbox.
 """
 
 from __future__ import annotations
@@ -12,9 +12,9 @@ from typing import Any
 
 from amplifier_core import ToolResult
 
-from core.graph_client import VelaGraphClient
+from core.graph_client import StrappedGraphClient
 
-logger = logging.getLogger("vela.tools.reply")
+logger = logging.getLogger("strapped.tools.reply")
 
 
 class DraftReplyTool:
@@ -103,7 +103,7 @@ after a separator "---PLAIN---".
         return ToolResult(
             success=True,
             output=json.dumps({
-                "_vela_internal": "llm_prompt",
+                "_strapped_internal": "llm_prompt",
                 "prompt": prompt,
                 "instruction": "Generate the HTML email body followed by ---PLAIN--- and plain-text version.",
             }),
@@ -111,9 +111,9 @@ after a separator "---PLAIN---".
 
 
 class SendReplyTool:
-    """Send an already-drafted reply via the Vela shared mailbox."""
+    """Send an already-drafted reply via the Strapped shared mailbox."""
 
-    def __init__(self, graph: VelaGraphClient, vela_mailbox: str) -> None:
+    def __init__(self, graph: StrappedGraphClient, vela_mailbox: str) -> None:
         self._graph = graph
         self._vela_mailbox = vela_mailbox
 
@@ -124,7 +124,7 @@ class SendReplyTool:
     @property
     def description(self) -> str:
         return (
-            "Send a reply email from the Vela shared mailbox. Use this ONLY "
+            "Send a reply email from the Strapped shared mailbox. Use this ONLY "
             "when the confidence threshold is met or after explicit attorney "
             "approval. Provide to, cc, subject, and HTML body."
         )

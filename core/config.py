@@ -2,6 +2,8 @@
 
 All Azure secrets are read once at import time so every other module can
 ``from core.config import settings`` without touching os.environ directly.
+
+Supports both VELA_ and STRAPPED_ env-var prefixes for backwards compat.
 """
 
 from __future__ import annotations
@@ -10,13 +12,14 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class VelaSettings(BaseSettings):
+class StrappedSettings(BaseSettings):
     """Application-wide settings sourced from environment / .env file."""
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        populate_by_name=True,
     )
 
     # Azure OpenAI
@@ -35,18 +38,26 @@ class VelaSettings(BaseSettings):
     azure_client_secret: str = Field(default="", description="App registration secret")
 
     # Vela operational
-    vela_mailbox: str = Field(
-        default="vela@ourfirm.onmicrosoft.com",
-        description="Shared mailbox Vela monitors",
+    strapped_mailbox: str = Field(
+        default="strapped@yourcompany.com",
+        alias="vela_mailbox",
+        description="Shared mailbox Strapped AI monitors",
     )
-    vela_log_level: str = Field(default="INFO")
-    vela_auto_approve_threshold: int = Field(
+    strapped_log_level: str = Field(
+        default="INFO",
+        alias="vela_log_level",
+    )
+    strapped_auto_approve_threshold: int = Field(
         default=85,
         ge=0,
         le=100,
-        description="Confidence % above which Vela sends replies without escalation",
+        alias="vela_auto_approve_threshold",
+        description="Confidence % above which Strapped sends replies without escalation",
     )
-    vela_default_timezone: str = Field(default="America/New_York")
+    strapped_default_timezone: str = Field(
+        default="America/New_York",
+        alias="vela_default_timezone",
+    )
 
 
-settings = VelaSettings()  # type: ignore[call-arg]
+settings = StrappedSettings()  # type: ignore[call-arg]

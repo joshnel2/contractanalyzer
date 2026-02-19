@@ -1,4 +1,4 @@
-"""Tests for the email-parsing Amplifier tools."""
+"""Tests for Strapped AI email-parsing tools."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ class TestEmailParserTool:
         })
         assert result.success is True
         data = json.loads(result.output)
-        assert data["_vela_internal"] == "llm_prompt"
+        assert data["_strapped_internal"] == "llm_prompt"
         assert "Q1 Strategy Review" in data["prompt"]
 
     @pytest.mark.asyncio
@@ -53,22 +53,22 @@ class TestIdentifyAttorneyTool:
         tool = IdentifyAttorneyTool()
         result = await tool.execute({
             "from_address": "jsmith@externalclient.com",
-            "to_addresses": ["j.nakamura@ourfirm.onmicrosoft.com", "vela@ourfirm.onmicrosoft.com"],
+            "to_addresses": ["j.nakamura@yourcompany.com", "strapped@yourcompany.com"],
             "cc_addresses": [],
-            "vela_mailbox": "vela@ourfirm.onmicrosoft.com",
+            "vela_mailbox": "strapped@yourcompany.com",
         })
         assert result.success is True
         data = json.loads(result.output)
-        assert data["requesting_attorney"] == "j.nakamura@ourfirm.onmicrosoft.com"
+        assert data["requesting_attorney"] == "j.nakamura@yourcompany.com"
 
     @pytest.mark.asyncio
     async def test_excludes_vela_mailbox(self) -> None:
         tool = IdentifyAttorneyTool()
         result = await tool.execute({
-            "from_address": "attorney@ourfirm.onmicrosoft.com",
-            "to_addresses": ["vela@ourfirm.onmicrosoft.com"],
-            "cc_addresses": ["colleague@ourfirm.onmicrosoft.com"],
-            "vela_mailbox": "vela@ourfirm.onmicrosoft.com",
+            "from_address": "attorney@yourcompany.com",
+            "to_addresses": ["strapped@yourcompany.com"],
+            "cc_addresses": ["colleague@yourcompany.com"],
+            "vela_mailbox": "strapped@yourcompany.com",
         })
         data = json.loads(result.output)
-        assert data["requesting_attorney"] != "vela@ourfirm.onmicrosoft.com"
+        assert data["requesting_attorney"] != "strapped@yourcompany.com"

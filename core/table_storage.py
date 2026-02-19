@@ -2,9 +2,9 @@
 
 Tables
 ------
-* ``VelaPreferences``  — one row per attorney (PartitionKey = firm, RowKey = email)
-* ``VelaAuditLog``     — append-only log (PartitionKey = attorney email, RowKey = timestamp)
-* ``VelaThreads``      — conversation thread tracking (PartitionKey = conversation_id)
+* ``StrappedPreferences``  — one row per team member (PartitionKey = firm, RowKey = email)
+* ``StrappedAuditLog``     — append-only log (PartitionKey = email, RowKey = timestamp)
+* ``StrappedThreads``      — conversation thread tracking (PartitionKey = conversation_id)
 """
 
 from __future__ import annotations
@@ -19,17 +19,17 @@ from azure.data.tables import TableClient, TableServiceClient, UpdateMode
 
 from core.models import AttorneyPreferences, AuditEntry
 
-logger = logging.getLogger("vela.storage")
+logger = logging.getLogger("strapped.storage")
 
-_PREFS_TABLE = "VelaPreferences"
-_AUDIT_TABLE = "VelaAuditLog"
-_THREADS_TABLE = "VelaThreads"
+_PREFS_TABLE = "StrappedPreferences"
+_AUDIT_TABLE = "StrappedAuditLog"
+_THREADS_TABLE = "StrappedThreads"
 
 _FIRM_PARTITION = "firm_default"
 
 
-class VelaTableStorage:
-    """Thin wrapper around Azure Table Storage for the three Vela tables."""
+class StrappedTableStorage:
+    """Thin wrapper around Azure Table Storage for the three Strapped tables."""
 
     def __init__(self, connection_string: str) -> None:
         self._svc = TableServiceClient.from_connection_string(connection_string)

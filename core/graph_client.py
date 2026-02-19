@@ -34,13 +34,13 @@ from msgraph.generated.users.item.send_mail.send_mail_post_request_body import (
 
 from core.models import CalendarEvent, TimeSlot
 
-logger = logging.getLogger("vela.graph")
+logger = logging.getLogger("strapped.graph")
 
 _GRAPH_SCOPES = ["https://graph.microsoft.com/.default"]
 
 
-class VelaGraphClient:
-    """High-level facade over the MS Graph SDK for Vela-Law operations."""
+class StrappedGraphClient:
+    """High-level facade over the MS Graph SDK for Strapped AI operations."""
 
     def __init__(self) -> None:
         credential = DefaultAzureCredential()
@@ -184,7 +184,7 @@ class VelaGraphClient:
         body_html: str,
         cc_addresses: list[str] | None = None,
     ) -> None:
-        """Send an email from the Vela shared mailbox."""
+        """Send an email from the Strapped shared mailbox."""
         message = Message(
             subject=subject,
             body=ItemBody(content_type=BodyType.Html, content=body_html),

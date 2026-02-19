@@ -1,4 +1,4 @@
-"""Tests for Vela-Law Pydantic domain models."""
+"""Tests for Strapped AI Pydantic domain models."""
 
 from __future__ import annotations
 

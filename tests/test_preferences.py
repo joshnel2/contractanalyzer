@@ -19,10 +19,10 @@ class TestParsePreferenceCommandTool:
     async def test_returns_llm_prompt(self) -> None:
         tool = ParsePreferenceCommandTool()
         result = await tool.execute({
-            "command": "Vela: set my buffer to 30 min",
+            "command": "Strapped: set my buffer to 30 min",
             "attorney_email": "test@firm.com",
         })
         assert result.success is True
         data = json.loads(result.output)
-        assert data["_vela_internal"] == "llm_prompt"
+        assert data["_strapped_internal"] == "llm_prompt"
         assert "buffer" in data["prompt"].lower()

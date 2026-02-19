@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Vela-Law Dependencies
+# Strapped AI Dependencies
 # ──────────────────────────────────────────────────────────────────────────────
 
 # Microsoft Amplifier (core + foundation)
@@ -23,13 +23,18 @@ openai>=1.58.0
 pydantic>=2.10.0
 pydantic-settings>=2.7.0
 
+# Web app (landing page, auth, dashboard)
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+jinja2>=3.1.0
+python-multipart>=0.0.18
+python-jose[cryptography]>=3.4.0
+passlib[bcrypt]>=1.7.4
+
 # Utilities
 python-dateutil>=2.9.0
 pytz>=2024.2
 python-dotenv>=1.0.1
-
-# Streamlit dashboard (optional — install separately for local dev)
-# streamlit>=1.41.0
 
 # Testing
 pytest>=8.3.0

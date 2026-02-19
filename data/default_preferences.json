@@ -32,7 +32,7 @@
   },
   "sample_attorneys": [
     {
-      "attorney_email": "j.nakamura@ourfirm.onmicrosoft.com",
+      "attorney_email": "j.nakamura@yourcompany.com",
       "display_name": "Jun Nakamura",
       "working_hours_start": "07:30",
       "working_hours_end": "17:30",
@@ -51,7 +51,7 @@
       "custom_signature": "Best regards,\nJun Nakamura\nPartner, Litigation"
     },
     {
-      "attorney_email": "s.oconnell@ourfirm.onmicrosoft.com",
+      "attorney_email": "s.oconnell@yourcompany.com",
       "display_name": "Sarah O'Connell",
       "working_hours_start": "09:00",
       "working_hours_end": "18:00",
@@ -70,7 +70,7 @@
       "custom_signature": "Cheers,\nSarah O'Connell\nSenior Associate, Corporate"
     },
     {
-      "attorney_email": "m.rivera@ourfirm.onmicrosoft.com",
+      "attorney_email": "m.rivera@yourcompany.com",
       "display_name": "Marco Rivera",
       "working_hours_start": "08:00",
       "working_hours_end": "19:00",

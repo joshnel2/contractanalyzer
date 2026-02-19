@@ -1,4 +1,4 @@
-"""Pydantic domain models shared across Vela-Law.
+"""Pydantic domain models shared across Strapped AI.
 
 Every data structure that crosses module boundaries is defined here so that
 tools, the function app, and the dashboard share a single source of truth.
@@ -54,7 +54,7 @@ class EmailIntent(str, Enum):
 
 
 class AttorneyPreferences(BaseModel):
-    """Per-attorney configuration — the heart of Vela's personalisation."""
+    """Per-user configuration — the heart of Strapped's personalisation."""
 
     attorney_email: str = Field(..., description="Primary email / partition key")
     display_name: str = Field(default="")
@@ -81,7 +81,7 @@ class AttorneyPreferences(BaseModel):
     # Auto-approve
     auto_approve_threshold: int = Field(
         default=85, ge=0, le=100,
-        description="Confidence pct above which Vela sends without asking",
+        description="Confidence pct above which Strapped sends without asking",
     )
 
     # Blackout / blocked

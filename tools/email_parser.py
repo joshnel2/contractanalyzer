@@ -2,7 +2,7 @@
 
 Extracts structured scheduling intent from raw inbound email, identifying
 participants, proposed times, matter/client references, urgency, and any
-embedded Vela preference commands.
+embedded Strapped preference commands.
 """
 
 from __future__ import annotations
@@ -13,24 +13,24 @@ from typing import Any
 
 from amplifier_core import ToolResult
 
-logger = logging.getLogger("vela.tools.email_parser")
+logger = logging.getLogger("strapped.tools.email_parser")
 
 _PARSE_PROMPT = """\
-You are Vela-Law's email-analysis subsystem. Given the raw email below,
+You are Strapped AI's email-analysis subsystem. Given the raw email below,
 extract the following fields as a JSON object. Be precise and conservative —
 if you are unsure about a field, leave it as the default.
 
 Required JSON schema:
 {{
   "intent": "schedule_meeting | reschedule | cancel | check_availability | update_preferences | general_inquiry | unknown",
-  "requesting_attorney_email": "<the attorney who CC'd or forwarded to Vela>",
+  "requesting_attorney_email": "<the person who CC'd or forwarded to Strapped>",
   "external_participants": ["<email or name of people outside the firm>"],
   "proposed_times": ["<any times/dates mentioned, in ISO-8601 or natural language>"],
   "duration_minutes": <int or null>,
   "matter_or_client": "<client name, matter number, or empty string>",
   "urgency": "normal | high | critical",
   "special_instructions": "<any location, call-in, travel, dietary, or other notes>",
-  "preference_commands": ["<any 'Vela: ...' commands found in the body>"],
+  "preference_commands": ["<any 'Strapped: ...' commands found in the body>"],
   "confidence": <0-100 your confidence in the overall parse>,
   "escalation_flags": ["<any of: rate_discussion, travel, multi_party, conflict_of_interest, custom_flag>"],
   "raw_summary": "<one-sentence summary of the request>"
@@ -51,7 +51,7 @@ Return ONLY the JSON object, no markdown fences.
 
 
 class EmailParserTool:
-    """Amplifier Tool that parses inbound emails into ``ParsedEmailIntent``."""
+    """Amplifier Tool that parses inbound emails into structured intent."""
 
     @property
     def name(self) -> str:
@@ -62,7 +62,7 @@ class EmailParserTool:
         return (
             "Parse a raw inbound email and extract structured scheduling intent, "
             "participants, proposed times, matter/client info, urgency, and any "
-            "embedded Vela preference commands. Returns JSON."
+            "embedded preference commands. Returns JSON."
         )
 
     @property
@@ -94,7 +94,7 @@ class EmailParserTool:
         return ToolResult(
             success=True,
             output=json.dumps({
-                "_vela_internal": "llm_prompt",
+                "_strapped_internal": "llm_prompt",
                 "prompt": prompt,
                 "instruction": (
                     "Execute this prompt against the LLM and return the raw JSON. "
@@ -105,7 +105,7 @@ class EmailParserTool:
 
 
 class IdentifyAttorneyTool:
-    """Determine which attorney CC'd Vela and resolve their email address."""
+    """Determine which team member CC'd Strapped and resolve their email."""
 
     @property
     def name(self) -> str:
@@ -115,7 +115,7 @@ class IdentifyAttorneyTool:
     def description(self) -> str:
         return (
             "Given the To and CC lists from an inbound email, identify which "
-            "address belongs to the requesting attorney (i.e. the non-Vela "
+            "address belongs to the requesting person (i.e. the non-Strapped "
             "internal address)."
         )
 

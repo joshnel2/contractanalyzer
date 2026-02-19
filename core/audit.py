@@ -1,4 +1,4 @@
-"""Structured audit logger for Vela-Law.
+"""Structured audit logger for Strapped AI.
 
 Every email received, decision made, reply sent, and escalation triggered
 is recorded to Azure Table Storage with full traceability.
@@ -13,7 +13,7 @@ from typing import Any
 
 from core.models import AuditEntry
 
-logger = logging.getLogger("vela.audit")
+logger = logging.getLogger("strapped.audit")
 
 
 class AuditLogger:

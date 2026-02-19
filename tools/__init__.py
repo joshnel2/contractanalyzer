@@ -1,1 +1,1 @@
-"""Vela-Law Amplifier tools — custom Tool protocol implementations."""
+"""Strapped AI Amplifier tools — custom Tool protocol implementations."""

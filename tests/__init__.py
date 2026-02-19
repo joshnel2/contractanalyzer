@@ -1,1 +1,1 @@
-"""Vela-Law test suite."""
+"""Strapped AI test suite."""

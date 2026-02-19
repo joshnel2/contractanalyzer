@@ -1,10 +1,10 @@
 bundle:
-  name: vela-reply-drafting
+  name: strapped-reply-drafting
   version: 1.0.0
   description: >
     Reply drafting bundle — tools for composing professional
     scheduling replies and sending them from the Vela shared mailbox.
-  tags: ["vela", "email", "reply", "drafting"]
+  tags: ["strapped", "email", "reply", "drafting"]
 
 tools:
   - name: draft_reply

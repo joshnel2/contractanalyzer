@@ -1,7 +1,7 @@
 [project]
-name = "vela-law"
+name = "strapped-ai"
 version = "1.0.0"
-description = "Vela-Law — AI-powered legal scheduling assistant built on Microsoft Amplifier"
+description = "Strapped AI — AI-powered scheduling assistant built on Microsoft Amplifier"
 license = "MIT"
 readme = "README.md"
 requires-python = ">=3.12"
