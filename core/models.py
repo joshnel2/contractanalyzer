@@ -6,7 +6,7 @@ tools, the function app, and the dashboard share a single source of truth.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -190,7 +190,7 @@ class DraftReply(BaseModel):
 class AuditEntry(BaseModel):
     partition_key: str = Field(description="attorney_email")
     row_key: str = Field(description="Timestamp-based unique key")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     action: str
     message_id: str = ""
     details: dict[str, Any] = Field(default_factory=dict)
