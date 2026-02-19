@@ -1,0 +1,39 @@
+name: "escalate-request"
+description: >
+  Recipe for composing and sending a detailed escalation email when
+  Vela cannot confidently handle a scheduling request.
+version: "1.0.0"
+author: "Vela-Law Team"
+tags: ["escalation", "compliance", "vela"]
+
+context:
+  attorney_email: ""
+  original_subject: ""
+  original_sender: ""
+  escalation_reasons: []
+  vela_understanding: ""
+
+steps:
+  - id: "compose-escalation"
+    type: "agent"
+    agent: "vela-law"
+    prompt: |
+      An escalation has been triggered for the following request:
+
+      Attorney: {{attorney_email}}
+      Original subject: {{original_subject}}
+      Original sender: {{original_sender}}
+      Reasons: {{escalation_reasons}}
+      Your understanding: {{vela_understanding}}
+
+      Use `get_preferences` to load the attorney's escalation settings.
+      Then use `send_escalation` with:
+      - A clear explanation of what you understood
+      - Why you're escalating
+      - A suggested next step for the attorney
+      - CC the original sender if appropriate
+
+      Be warm but professional. The attorney should feel supported, not
+      burdened.
+    output: "escalation_result"
+    timeout: 60

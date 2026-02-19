@@ -1,0 +1,25 @@
+bundle:
+  name: vela-preferences-manager
+  version: 1.0.0
+  description: >
+    Preferences management bundle — tools for reading, updating,
+    and interpreting attorney scheduling preferences stored in
+    Azure Table Storage.
+  tags: ["vela", "preferences", "config"]
+
+tools:
+  - name: get_preferences
+    description: Load merged firm-default + attorney-override preferences
+    module_class: tools.preferences_tools.GetPreferencesTool
+
+  - name: update_preferences
+    description: Apply partial preference updates for an attorney
+    module_class: tools.preferences_tools.UpdatePreferencesTool
+
+  - name: parse_preference_command
+    description: Interpret natural-language "Vela:" preference commands
+    module_class: tools.preferences_tools.ParsePreferenceCommandTool
+
+  - name: list_attorneys
+    description: List all attorneys with stored preferences
+    module_class: tools.preferences_tools.ListAttorneysTool

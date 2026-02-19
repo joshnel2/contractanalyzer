@@ -1,0 +1,39 @@
+name: "update-preferences"
+description: >
+  Recipe for processing an email that contains only preference-update
+  commands (e.g. "Vela: set my buffer to 30 min").
+version: "1.0.0"
+author: "Vela-Law Team"
+tags: ["preferences", "update", "vela"]
+
+context:
+  email_json: ""
+
+steps:
+  - id: "parse-commands"
+    type: "agent"
+    agent: "vela-law"
+    prompt: |
+      This email contains preference-update commands. Parse the email:
+      {{email_json}}
+
+      Use `identify_attorney` to find the requesting attorney, then scan
+      the body for all "Vela: ..." commands. For each command:
+      1. Use `parse_preference_command` to interpret it
+      2. Use `update_preferences` to apply the change
+      3. Collect all changes for the confirmation reply
+    output: "update_result"
+    timeout: 60
+
+  - id: "confirm-updates"
+    type: "agent"
+    agent: "vela-law"
+    prompt: |
+      Preference updates applied:
+      {{update_result}}
+
+      Compose a brief, warm confirmation email to the attorney listing
+      what was changed. Use `draft_reply` with the attorney's tone
+      preference, then `send_reply` to deliver it.
+    output: "confirmation_result"
+    timeout: 60

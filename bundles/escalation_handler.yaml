@@ -1,0 +1,17 @@
+bundle:
+  name: vela-escalation-handler
+  version: 1.0.0
+  description: >
+    Escalation handler bundle — tools for evaluating whether a
+    request needs human oversight and notifying the attorney with
+    full context when it does.
+  tags: ["vela", "escalation", "compliance"]
+
+tools:
+  - name: evaluate_escalation
+    description: Check whether escalation to the attorney is required
+    module_class: tools.escalation_tools.EvaluateEscalationTool
+
+  - name: send_escalation
+    description: Send escalation notification to the attorney
+    module_class: tools.escalation_tools.SendEscalationTool

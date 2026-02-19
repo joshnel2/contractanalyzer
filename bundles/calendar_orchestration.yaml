@@ -1,0 +1,25 @@
+bundle:
+  name: vela-calendar-orchestration
+  version: 1.0.0
+  description: >
+    Calendar orchestration bundle — tools for reading calendars,
+    finding available slots, creating events, and checking
+    multi-party availability via Microsoft Graph API.
+  tags: ["vela", "calendar", "graph", "scheduling"]
+
+tools:
+  - name: check_calendar
+    description: Fetch calendar events for an attorney in a date range
+    module_class: tools.calendar_tools.CheckCalendarTool
+
+  - name: find_available_slots
+    description: Find open meeting slots respecting preferences and buffers
+    module_class: tools.calendar_tools.FindAvailableSlotsTool
+
+  - name: create_calendar_event
+    description: Book a calendar event via Microsoft Graph
+    module_class: tools.calendar_tools.CreateCalendarEventTool
+
+  - name: check_multi_party_availability
+    description: Find common free time across multiple attendee calendars
+    module_class: tools.calendar_tools.CheckMultiPartyAvailabilityTool

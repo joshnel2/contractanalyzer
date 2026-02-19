@@ -1,0 +1,111 @@
+name: "new-scheduling-request"
+description: >
+  End-to-end recipe for handling a new inbound scheduling email.
+  Parses intent → loads preferences → checks escalation →
+  queries calendar → proposes slots → drafts reply → sends or escalates.
+version: "1.0.0"
+author: "Vela-Law Team"
+tags: ["scheduling", "email", "calendar", "vela"]
+
+context:
+  email_json: ""
+
+steps:
+  # ── Step 1: Parse the inbound email ────────────────────────────────────
+  - id: "parse-email"
+    type: "agent"
+    agent: "vela-law"
+    prompt: |
+      An inbound email has arrived at the Vela mailbox. Parse it using the
+      `parse_email` tool and then `identify_attorney` to determine who is
+      requesting the scheduling.
+
+      Email payload:
+      {{email_json}}
+
+      After parsing, report:
+      1. The identified intent
+      2. The requesting attorney's email
+      3. Any preference commands found
+      4. Your confidence score
+    output: "parsed_result"
+    timeout: 60
+
+  # ── Step 2: Load attorney preferences ──────────────────────────────────
+  - id: "load-preferences"
+    type: "agent"
+    agent: "vela-law"
+    prompt: |
+      The requesting attorney has been identified from the previous step:
+      {{parsed_result}}
+
+      Use `get_preferences` to load their full preference profile.
+      If the email contained any "Vela: ..." preference commands, process
+      them NOW using `parse_preference_command` and `update_preferences`.
+      Confirm any preference changes.
+    output: "preferences_result"
+    timeout: 60
+
+  # ── Step 3: Evaluate escalation ────────────────────────────────────────
+  - id: "evaluate-escalation"
+    type: "agent"
+    agent: "vela-law"
+    prompt: |
+      Using the parse results and preferences loaded so far:
+
+      Parse result: {{parsed_result}}
+      Preferences: {{preferences_result}}
+
+      Use `evaluate_escalation` to check whether this request should be
+      escalated. Pass the confidence score, the attorney's threshold,
+      any escalation flags, the email body, and the attorney's escalation
+      keywords.
+
+      If escalation IS needed, use `send_escalation` with clear context
+      and STOP HERE — do not proceed to calendar checking.
+
+      If escalation is NOT needed, confirm and proceed.
+    output: "escalation_result"
+    timeout: 60
+
+  # ── Step 4: Check calendar and find slots ──────────────────────────────
+  - id: "find-slots"
+    condition: "escalation not triggered"
+    type: "agent"
+    agent: "vela-law"
+    prompt: |
+      Escalation check passed:
+      {{escalation_result}}
+
+      Now use `find_available_slots` to check the attorney's calendar for
+      the requested date(s). Use the attorney's preferences for working
+      hours, buffer times, and timezone.
+
+      If there are external participants, also use
+      `check_multi_party_availability` to find common free times.
+
+      Return the top 3 available slots with scores and reasons.
+    output: "slots_result"
+    timeout: 90
+
+  # ── Step 5: Draft and send reply ───────────────────────────────────────
+  - id: "draft-and-send"
+    condition: "slots found"
+    type: "agent"
+    agent: "vela-law"
+    prompt: |
+      Available slots:
+      {{slots_result}}
+
+      Attorney preferences and parse context:
+      {{preferences_result}}
+      {{parsed_result}}
+
+      Use `draft_reply` to compose a polished scheduling email proposing
+      2-3 of the best slots. Match the attorney's configured tone.
+
+      Then use `send_reply` to send it from the Vela mailbox.
+
+      Log the action in your response.
+    output: "send_result"
+    timeout: 90

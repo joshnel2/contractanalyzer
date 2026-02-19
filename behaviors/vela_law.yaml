@@ -1,0 +1,10 @@
+bundle:
+  name: vela-law-behavior
+  version: 1.0.0
+  description: >
+    Core Vela-Law behavior bundle — wires up the agent profile
+    and all domain context for the legal scheduling assistant.
+
+agents:
+  include:
+    - vela-law:agents/vela_law
