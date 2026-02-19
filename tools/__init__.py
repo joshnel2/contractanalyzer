@@ -1,1 +1,1 @@
-"""Strapped AI Amplifier tools — custom Tool protocol implementations."""
+"""Strapped AI Amplifier tools — email, calendar, digest, and preferences."""

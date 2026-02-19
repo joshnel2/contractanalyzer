@@ -1,16 +1,11 @@
-"""Strapped AI Azure Function App — HTTP trigger entry point.
+"""Strapped AI Azure Function App — digest generation endpoint.
 
-This is the production runtime. A Logic App watches the Strapped shared
-mailbox and POSTs each inbound email as JSON to the ``/api/strapped``
-endpoint. The function spins up an Amplifier session with all tools mounted,
-processes the email, and either auto-replies or escalates.
+Provides two HTTP triggers:
+  POST /api/strapped/digest   — generate and send a digest for a user
+  GET  /api/strapped/health   — health check
 
-Architecture
-────────────
-  Logic App  →  POST /api/strapped  →  Amplifier Session  →  Graph API
-                                             │
-                                       Azure Table Storage
-                                      (prefs, audit, threads)
+The web app or a timer trigger calls the digest endpoint to generate
+email + calendar summaries and notify the user.
 """
 
 from __future__ import annotations
@@ -18,7 +13,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
@@ -33,26 +27,12 @@ from core.config import settings
 from core.audit import AuditLogger
 from core.database import init_db
 from core.graph_client import StrappedGraphClient
-from core.models import InboundEmail, EmailIntent
 from core.table_storage import StrappedTableStorage
 
-from tools.email_parser import EmailParserTool, IdentifyAttorneyTool
-from tools.calendar_tools import (
-    CheckCalendarTool,
-    CheckMultiPartyAvailabilityTool,
-    CreateCalendarEventTool,
-    FindAvailableSlotsTool,
-)
-from tools.preferences_tools import (
-    GetPreferencesTool,
-    ListAttorneysTool,
-    ParsePreferenceCommandTool,
-    UpdatePreferencesTool,
-)
-from tools.reply_tools import DraftReplyTool, SendReplyTool
-from tools.escalation_tools import EvaluateEscalationTool, SendEscalationTool
-
-# ── Logging ──────────────────────────────────────────────────────────────────
+from tools.email_tools import ReadEmailsTool
+from tools.calendar_tools import ReadCalendarTool
+from tools.notification_tools import SendDigestTool
+from tools.preferences_tools import GetPreferencesTool, UpdatePreferencesTool
 
 logging.basicConfig(
     level=getattr(logging, settings.strapped_log_level, logging.INFO),
@@ -60,39 +40,42 @@ logging.basicConfig(
 )
 logger = logging.getLogger("strapped.function")
 
-# ── Azure Function App ───────────────────────────────────────────────────────
-
 app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
 
-@app.route(route="strapped", methods=["POST"])
-async def strapped_endpoint(req: func.HttpRequest) -> func.HttpResponse:
-    """Main entry point — receives email JSON from Logic App."""
-    logger.info("Strapped endpoint invoked")
+@app.route(route="strapped/digest", methods=["POST"])
+async def digest_endpoint(req: func.HttpRequest) -> func.HttpResponse:
+    """Generate and send an email + calendar digest for a user."""
+    logger.info("Digest endpoint invoked")
 
     try:
         body = req.get_json()
     except ValueError:
         return func.HttpResponse(
-            json.dumps({"error": "Invalid JSON payload"}),
+            json.dumps({"error": "Invalid JSON — provide {\"user_email\": \"...\"}"}),
+            status_code=400,
+            mimetype="application/json",
+        )
+
+    user_email = body.get("user_email", "")
+    if not user_email:
+        return func.HttpResponse(
+            json.dumps({"error": "user_email is required"}),
             status_code=400,
             mimetype="application/json",
         )
 
     try:
-        result = await _process_email(body)
+        result = await _generate_digest(user_email)
         return func.HttpResponse(
             json.dumps(result, default=str),
             status_code=200,
             mimetype="application/json",
         )
     except Exception:
-        logger.exception("Unhandled error in strapped_endpoint")
+        logger.exception("Digest generation failed for %s", user_email)
         return func.HttpResponse(
-            json.dumps({
-                "error": "Internal processing error",
-                "trace": traceback.format_exc(),
-            }),
+            json.dumps({"error": "Digest generation failed", "trace": traceback.format_exc()}),
             status_code=500,
             mimetype="application/json",
         )
@@ -100,7 +83,6 @@ async def strapped_endpoint(req: func.HttpRequest) -> func.HttpResponse:
 
 @app.route(route="strapped/health", methods=["GET"])
 async def health_check(req: func.HttpRequest) -> func.HttpResponse:
-    """Lightweight health probe for monitoring."""
     return func.HttpResponse(
         json.dumps({"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}),
         status_code=200,
@@ -108,57 +90,45 @@ async def health_check(req: func.HttpRequest) -> func.HttpResponse:
     )
 
 
-# ── Core Processing Pipeline ────────────────────────────────────────────────
+async def _generate_digest(user_email: str) -> dict[str, Any]:
+    """Read emails + calendar, run the Amplifier session, send the digest."""
 
-
-async def _process_email(payload: dict[str, Any]) -> dict[str, Any]:
-    """Orchestrate the full Strapped AI pipeline for one inbound email."""
-
-    # 1. Normalise the inbound email
-    email = _normalise_email(payload)
-    logger.info("Processing email: %s (from %s)", email.subject, email.from_address)
-
-    # 2. Initialise infrastructure
     init_db()
     storage = StrappedTableStorage()
     graph = StrappedGraphClient()
     audit = AuditLogger(storage)
 
-    audit.email_received(email.from_address, email.message_id, email.subject)
+    audit.log(user_email, "digest_requested")
 
-    # 3. Build the Amplifier session with all tools
-    session, agent_instruction = await _build_session(storage, graph)
+    session = await _build_session(storage, graph)
 
-    # 4. Compose the master prompt with the email context
-    master_prompt = _build_master_prompt(email)
+    prompt = f"""\
+Generate a daily digest for {user_email}.
 
-    # 5. Execute the Amplifier session
+1. Use `read_emails` to fetch their recent emails (last 24 hours).
+2. Use `read_calendar` to fetch their upcoming events (next 3 days).
+3. Summarise everything following your digest format:
+   - Email summary (urgent / FYI / low priority)
+   - Calendar summary (today / tomorrow / this week)
+   - Action items
+4. Use `send_digest` to email the summary to {user_email}.
+
+The Strapped shared mailbox is: {settings.strapped_mailbox}
+"""
+
     try:
         async with session:
-            response = await session.execute(master_prompt)
+            response = await session.execute(prompt)
     except Exception:
         logger.exception("Amplifier session failed")
-        audit.log(
-            email.from_address,
-            "session_error",
-            message_id=email.message_id,
-            outcome="error",
-        )
+        audit.log(user_email, "digest_error", outcome="error")
         raise
 
-    # 6. Save thread state
-    storage.save_thread(
-        email.conversation_id or email.message_id,
-        {
-            "last_email_id": email.message_id,
-            "last_response": response[:2000],
-            "processed_at": datetime.now(timezone.utc).isoformat(),
-        },
-    )
+    audit.log(user_email, "digest_sent", outcome="sent")
 
     return {
-        "status": "processed",
-        "message_id": email.message_id,
+        "status": "digest_sent",
+        "user_email": user_email,
         "response_preview": response[:500],
     }
 
@@ -166,52 +136,41 @@ async def _process_email(payload: dict[str, Any]) -> dict[str, Any]:
 async def _build_session(
     storage: StrappedTableStorage,
     graph: StrappedGraphClient,
-) -> tuple[Any, str]:
-    """Construct and return a fully-armed Amplifier session.
-
-    Loads the foundation bundle, composes with Azure OpenAI provider,
-    and mounts all Strapped custom tools.
-    """
+) -> Any:
+    """Build an Amplifier session with the digest tools."""
     from amplifier_core import AmplifierSession
     from amplifier_foundation import Bundle, load_bundle
 
-    # Load the Amplifier foundation from GitHub
     foundation_source = "git+https://github.com/microsoft/amplifier-foundation@main"
     foundation = await load_bundle(foundation_source)
 
-    # Configure the Azure OpenAI provider
     provider_bundle = Bundle(
         name="provider-azure-openai",
         version="1.0.0",
-        providers=[
-            {
-                "module": "provider-openai",
-                "source": "git+https://github.com/microsoft/amplifier-module-provider-openai@main",
-                "config": {
-                    "api_type": "azure",
-                    "azure_endpoint": settings.azure_openai_endpoint,
-                    "api_key": settings.azure_openai_api_key,
-                    "default_model": settings.azure_openai_deployment_name,
-                    "api_version": "2024-12-01-preview",
-                },
+        providers=[{
+            "module": "provider-openai",
+            "source": "git+https://github.com/microsoft/amplifier-module-provider-openai@main",
+            "config": {
+                "api_type": "azure",
+                "azure_endpoint": settings.azure_openai_endpoint,
+                "api_key": settings.azure_openai_api_key,
+                "default_model": settings.azure_openai_deployment_name,
+                "api_version": "2024-12-01-preview",
             },
-        ],
+        }],
     )
 
-    # Load the Strapped AI agent instruction from the agent markdown file
     agent_md = Path(__file__).parent / "agents" / "strapped_ai.md"
     agent_instruction = ""
     if agent_md.exists():
         raw = agent_md.read_text()
-        # Strip frontmatter
         if raw.startswith("---"):
             parts = raw.split("---", 2)
             agent_instruction = parts[2].strip() if len(parts) > 2 else raw
         else:
             agent_instruction = raw
 
-    # Compose the Strapped bundle with instruction
-    strapped_bundle = Bundle(
+    app_bundle = Bundle(
         name="strapped-ai",
         version="1.0.0",
         instruction=agent_instruction,
@@ -219,7 +178,7 @@ async def _build_session(
             "orchestrator": {
                 "module": "loop-basic",
                 "source": "git+https://github.com/microsoft/amplifier-module-loop-basic@main",
-                "config": {"max_iterations": 20},
+                "config": {"max_iterations": 10},
             },
             "context": {
                 "module": "context-simple",
@@ -229,127 +188,16 @@ async def _build_session(
         },
     )
 
-    composed = foundation.compose(provider_bundle).compose(strapped_bundle)
-
-    # Prepare and create session
+    composed = foundation.compose(provider_bundle).compose(app_bundle)
     prepared = await composed.prepare()
     session = await prepared.create_session(session_cwd=Path.cwd())
 
-    # Mount all custom Strapped tools
     coordinator = session.coordinator
-
-    # Email parsing tools
-    await coordinator.mount("tools", EmailParserTool(), name="parse_email")
-    await coordinator.mount("tools", IdentifyAttorneyTool(), name="identify_attorney")
-
-    # Calendar tools
-    await coordinator.mount("tools", CheckCalendarTool(graph), name="check_calendar")
-    await coordinator.mount("tools", FindAvailableSlotsTool(graph), name="find_available_slots")
-    await coordinator.mount("tools", CreateCalendarEventTool(graph), name="create_calendar_event")
-    await coordinator.mount(
-        "tools",
-        CheckMultiPartyAvailabilityTool(graph),
-        name="check_multi_party_availability",
-    )
-
-    # Preference tools
+    await coordinator.mount("tools", ReadEmailsTool(graph), name="read_emails")
+    await coordinator.mount("tools", ReadCalendarTool(graph), name="read_calendar")
+    await coordinator.mount("tools", SendDigestTool(graph, settings.strapped_mailbox), name="send_digest")
     await coordinator.mount("tools", GetPreferencesTool(storage), name="get_preferences")
     await coordinator.mount("tools", UpdatePreferencesTool(storage), name="update_preferences")
-    await coordinator.mount("tools", ParsePreferenceCommandTool(), name="parse_preference_command")
-    await coordinator.mount("tools", ListAttorneysTool(storage), name="list_attorneys")
 
-    # Reply tools
-    await coordinator.mount("tools", DraftReplyTool(), name="draft_reply")
-    await coordinator.mount(
-        "tools",
-        SendReplyTool(graph, settings.strapped_mailbox),
-        name="send_reply",
-    )
-
-    # Escalation tools
-    await coordinator.mount("tools", EvaluateEscalationTool(), name="evaluate_escalation")
-    await coordinator.mount(
-        "tools",
-        SendEscalationTool(graph, settings.strapped_mailbox),
-        name="send_escalation",
-    )
-
-    logger.info("Amplifier session built with %d custom tools", 14)
-    return session, agent_instruction
-
-
-# ── Helpers ──────────────────────────────────────────────────────────────────
-
-
-def _normalise_email(payload: dict[str, Any]) -> InboundEmail:
-    """Map the Logic App JSON payload to our InboundEmail model."""
-    return InboundEmail(
-        message_id=payload.get("Id") or payload.get("message_id") or "",
-        conversation_id=payload.get("ConversationId") or payload.get("conversation_id") or "",
-        from_address=(
-            payload.get("From", "")
-            if isinstance(payload.get("From"), str)
-            else payload.get("From", {}).get("Address", payload.get("from_address", ""))
-        ),
-        from_name=payload.get("FromName") or payload.get("from_name") or "",
-        to_addresses=_extract_addresses(payload.get("To") or payload.get("to_addresses") or []),
-        cc_addresses=_extract_addresses(payload.get("Cc") or payload.get("cc_addresses") or []),
-        subject=payload.get("Subject") or payload.get("subject") or "",
-        body_text=payload.get("BodyPreview") or payload.get("Body") or payload.get("body_text") or "",
-        body_html=payload.get("Body") or payload.get("body_html") or "",
-        received_at=datetime.fromisoformat(
-            payload.get("DateTimeReceived")
-            or payload.get("received_at")
-            or datetime.now(timezone.utc).isoformat()
-        ),
-        has_attachments=payload.get("HasAttachments", False),
-        importance=payload.get("Importance", "normal"),
-    )
-
-
-def _extract_addresses(raw: Any) -> list[str]:
-    """Flexibly extract email addresses from various Logic App formats."""
-    if isinstance(raw, list):
-        result = []
-        for item in raw:
-            if isinstance(item, str):
-                result.append(item)
-            elif isinstance(item, dict):
-                result.append(item.get("Address") or item.get("address") or "")
-        return [a for a in result if a]
-    if isinstance(raw, str):
-        return [a.strip() for a in raw.split(";") if a.strip()]
-    return []
-
-
-def _build_master_prompt(email: InboundEmail) -> str:
-    """Compose the master prompt that kicks off the Strapped agent loop."""
-    return f"""\
-A new email has arrived at the Strapped shared mailbox. Process it following
-your standard workflow.
-
-── INBOUND EMAIL ──
-Message ID: {email.message_id}
-Conversation ID: {email.conversation_id}
-From: {email.from_address} ({email.from_name})
-To: {', '.join(email.to_addresses)}
-CC: {', '.join(email.cc_addresses)}
-Subject: {email.subject}
-Received: {email.received_at.isoformat()}
-Importance: {email.importance}
-
-Body:
-{email.body_text[:6000]}
-── END EMAIL ──
-
-Follow your standard workflow:
-1. Parse the email with `parse_email` and `identify_attorney`
-2. Load the attorney's preferences with `get_preferences`
-3. Process any "Strapped: ..." preference commands
-4. Evaluate escalation with `evaluate_escalation`
-5. If no escalation: find available slots with `find_available_slots`
-6. Draft a reply with `draft_reply`
-7. Send it with `send_reply` (if confidence meets threshold) or escalate
-
-The Strapped shared mailbox is: {settings.strapped_mailbox}
-"""
+    logger.info("Amplifier session built with 5 tools")
+    return session

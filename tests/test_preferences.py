@@ -1,28 +1,20 @@
-"""Tests for the preferences-management Amplifier tools."""
+"""Tests for preferences tools."""
 
 from __future__ import annotations
 
-import json
-
-import pytest
-
-from tools.preferences_tools import ParsePreferenceCommandTool
+from tools.preferences_tools import GetPreferencesTool, UpdatePreferencesTool
 
 
-class TestParsePreferenceCommandTool:
+class TestGetPreferencesTool:
     def test_properties(self) -> None:
-        tool = ParsePreferenceCommandTool()
-        assert tool.name == "parse_preference_command"
-        assert "command" in tool.input_schema["properties"]
+        tool = GetPreferencesTool.__new__(GetPreferencesTool)
+        assert tool.name == "get_preferences"
+        assert "user_email" in tool.input_schema["required"]
 
-    @pytest.mark.asyncio
-    async def test_returns_llm_prompt(self) -> None:
-        tool = ParsePreferenceCommandTool()
-        result = await tool.execute({
-            "command": "Strapped: set my buffer to 30 min",
-            "attorney_email": "test@firm.com",
-        })
-        assert result.success is True
-        data = json.loads(result.output)
-        assert data["_strapped_internal"] == "llm_prompt"
-        assert "buffer" in data["prompt"].lower()
+
+class TestUpdatePreferencesTool:
+    def test_properties(self) -> None:
+        tool = UpdatePreferencesTool.__new__(UpdatePreferencesTool)
+        assert tool.name == "update_preferences"
+        assert "user_email" in tool.input_schema["required"]
+        assert "updates" in tool.input_schema["required"]

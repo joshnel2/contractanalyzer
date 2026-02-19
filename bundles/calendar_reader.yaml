@@ -1,0 +1,10 @@
+bundle:
+  name: strapped-calendar-reader
+  version: 1.0.0
+  description: Read upcoming calendar events from Microsoft 365.
+  tags: ["strapped", "calendar", "reader"]
+
+tools:
+  - name: read_calendar
+    description: Fetch upcoming calendar events for a user
+    module_class: tools.calendar_tools.ReadCalendarTool

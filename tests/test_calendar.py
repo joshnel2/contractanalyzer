@@ -1,40 +1,19 @@
-"""Tests for calendar tool schemas and basic validation."""
+"""Tests for calendar reading tool."""
 
 from __future__ import annotations
 
-import pytest
-
-from tools.calendar_tools import (
-    CheckCalendarTool,
-    CheckMultiPartyAvailabilityTool,
-    CreateCalendarEventTool,
-    FindAvailableSlotsTool,
-)
+from tools.calendar_tools import ReadCalendarTool
 
 
-class TestCalendarToolSchemas:
-    """Verify tool contracts (name, description, input_schema) are correct."""
+class TestReadCalendarTool:
+    def test_properties(self) -> None:
+        tool = ReadCalendarTool.__new__(ReadCalendarTool)
+        assert tool.name == "read_calendar"
+        assert "calendar" in tool.description.lower()
+        assert "user_email" in tool.input_schema["properties"]
+        assert "user_email" in tool.input_schema["required"]
 
-    def test_check_calendar_schema(self) -> None:
-        # Graph client is only called on execute, not on property access
-        tool = CheckCalendarTool.__new__(CheckCalendarTool)
-        assert tool.name == "check_calendar"
-        assert "attorney_email" in tool.input_schema["properties"]
-        assert "start_date" in tool.input_schema["required"]
-
-    def test_find_available_slots_schema(self) -> None:
-        tool = FindAvailableSlotsTool.__new__(FindAvailableSlotsTool)
-        assert tool.name == "find_available_slots"
+    def test_schema_defaults(self) -> None:
+        tool = ReadCalendarTool.__new__(ReadCalendarTool)
         schema = tool.input_schema
-        assert "duration_minutes" in schema["properties"]
-        assert schema["properties"]["duration_minutes"].get("default") == 60
-
-    def test_create_event_schema(self) -> None:
-        tool = CreateCalendarEventTool.__new__(CreateCalendarEventTool)
-        assert tool.name == "create_calendar_event"
-        assert "attendees" in tool.input_schema["required"]
-
-    def test_multi_party_schema(self) -> None:
-        tool = CheckMultiPartyAvailabilityTool.__new__(CheckMultiPartyAvailabilityTool)
-        assert tool.name == "check_multi_party_availability"
-        assert "attendee_emails" in tool.input_schema["properties"]
+        assert schema["properties"]["days_ahead"]["default"] == 3

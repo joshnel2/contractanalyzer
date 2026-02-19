@@ -1,34 +1,33 @@
-"""Calendar reading tool — fetches upcoming events from a user's calendar."""
+"""Email reading tool — fetches recent messages from a user's inbox."""
 
 from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from amplifier_core import ToolResult
 
 from core.graph_client import StrappedGraphClient
 
-logger = logging.getLogger("strapped.tools.calendar")
+logger = logging.getLogger("strapped.tools.email")
 
 
-class ReadCalendarTool:
-    """Fetch upcoming calendar events for a user via Microsoft Graph."""
+class ReadEmailsTool:
+    """Fetch recent emails for a user via Microsoft Graph."""
 
     def __init__(self, graph: StrappedGraphClient) -> None:
         self._graph = graph
 
     @property
     def name(self) -> str:
-        return "read_calendar"
+        return "read_emails"
 
     @property
     def description(self) -> str:
         return (
-            "Fetch upcoming calendar events for a user. Returns subject, "
-            "start/end times, location, attendees, and notes for each event."
+            "Fetch recent emails from a user's Microsoft 365 inbox. "
+            "Returns subject, sender, preview, importance, and read status."
         )
 
     @property
@@ -40,10 +39,15 @@ class ReadCalendarTool:
                     "type": "string",
                     "description": "The user's email address",
                 },
-                "days_ahead": {
+                "count": {
                     "type": "integer",
-                    "default": 3,
-                    "description": "How many days ahead to look",
+                    "default": 20,
+                    "description": "Max emails to fetch",
+                },
+                "since_hours": {
+                    "type": "integer",
+                    "default": 24,
+                    "description": "Look back this many hours",
                 },
             },
             "required": ["user_email"],
@@ -51,17 +55,15 @@ class ReadCalendarTool:
 
     async def execute(self, input: dict[str, Any]) -> ToolResult:
         try:
-            now = datetime.now(timezone.utc)
-            end = now + timedelta(days=input.get("days_ahead", 3))
-            events = await self._graph.get_events(
+            emails = await self._graph.get_recent_emails(
                 user_email=input["user_email"],
-                start=now,
-                end=end,
+                count=input.get("count", 20),
+                since_hours=input.get("since_hours", 24),
             )
             return ToolResult(
                 success=True,
-                output=json.dumps(events, default=str),
+                output=json.dumps(emails, default=str),
             )
         except Exception as exc:
-            logger.exception("read_calendar failed")
+            logger.exception("read_emails failed")
             return ToolResult(success=False, error={"message": str(exc)})

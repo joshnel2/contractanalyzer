@@ -1,8 +1,4 @@
-"""Preferences-management Amplifier tools.
-
-Allows Strapped (and the LLM agent) to read, update, and interpret
-preferences stored in Azure Table Storage.
-"""
+"""Preferences tools — read and update user notification preferences."""
 
 from __future__ import annotations
 
@@ -19,7 +15,7 @@ logger = logging.getLogger("strapped.tools.preferences")
 
 
 class GetPreferencesTool:
-    """Load the merged (firm-default + override) preferences for an attorney."""
+    """Load preferences for a user."""
 
     def __init__(self, storage: StrappedTableStorage) -> None:
         self._storage = storage
@@ -30,28 +26,24 @@ class GetPreferencesTool:
 
     @property
     def description(self) -> str:
-        return (
-            "Retrieve the full preferences profile for an attorney, including "
-            "working hours, buffer times, preferred durations, tone, escalation "
-            "rules, blackout dates, and more."
-        )
+        return "Retrieve a user's notification and summary preferences."
 
     @property
     def input_schema(self) -> dict:
         return {
             "type": "object",
             "properties": {
-                "attorney_email": {
+                "user_email": {
                     "type": "string",
-                    "description": "Attorney's email address",
+                    "description": "The user's email address",
                 },
             },
-            "required": ["attorney_email"],
+            "required": ["user_email"],
         }
 
     async def execute(self, input: dict[str, Any]) -> ToolResult:
         try:
-            prefs = self._storage.get_preferences(input["attorney_email"])
+            prefs = self._storage.get_preferences(input["user_email"])
             return ToolResult(
                 success=True,
                 output=json.dumps(prefs.model_dump(), default=str),
@@ -62,7 +54,7 @@ class GetPreferencesTool:
 
 
 class UpdatePreferencesTool:
-    """Apply one or more preference changes for an attorney."""
+    """Update preferences for a user."""
 
     def __init__(self, storage: StrappedTableStorage) -> None:
         self._storage = storage
@@ -74,10 +66,8 @@ class UpdatePreferencesTool:
     @property
     def description(self) -> str:
         return (
-            "Update specific preferences for an attorney. Accepts a partial "
-            "dict of preference fields to change — unchanged fields are kept. "
-            "Examples: buffer_before_minutes, working_hours_start, response_tone, "
-            "preferred_duration_internal, blackout_dates, etc."
+            "Update a user's preferences. Accepts a partial dict of fields "
+            "to change — unchanged fields are kept."
         )
 
     @property
@@ -85,21 +75,18 @@ class UpdatePreferencesTool:
         return {
             "type": "object",
             "properties": {
-                "attorney_email": {"type": "string"},
+                "user_email": {"type": "string"},
                 "updates": {
                     "type": "object",
-                    "description": (
-                        "Partial dict of preference fields to update, e.g. "
-                        '{"buffer_before_minutes": 30, "response_tone": "friendly"}'
-                    ),
+                    "description": "Partial dict of preference fields to update",
                 },
             },
-            "required": ["attorney_email", "updates"],
+            "required": ["user_email", "updates"],
         }
 
     async def execute(self, input: dict[str, Any]) -> ToolResult:
         try:
-            email = input["attorney_email"]
+            email = input["user_email"]
             updates = input.get("updates", {})
 
             current = self._storage.get_preferences(email)
@@ -114,101 +101,10 @@ class UpdatePreferencesTool:
                 success=True,
                 output=json.dumps({
                     "status": "updated",
-                    "attorney": email,
+                    "user": email,
                     "changed_fields": list(updates.keys()),
                 }),
             )
         except Exception as exc:
             logger.exception("update_preferences failed")
-            return ToolResult(success=False, error={"message": str(exc)})
-
-
-class ParsePreferenceCommandTool:
-    """Interpret natural-language preference commands from email bodies.
-
-    Team members can embed commands like:
-        "Strapped: set my buffer to 30 min"
-        "Strapped: prefer 45-min internal calls"
-        "Strapped: block Fridays after 3pm"
-    """
-
-    @property
-    def name(self) -> str:
-        return "parse_preference_command"
-
-    @property
-    def description(self) -> str:
-        return (
-            "Parse a natural-language 'Strapped: ...' preference command and return "
-            "the structured preference update. Use this when the email contains "
-            "preference-update instructions."
-        )
-
-    @property
-    def input_schema(self) -> dict:
-        return {
-            "type": "object",
-            "properties": {
-                "command": {
-                    "type": "string",
-                    "description": "The raw 'Strapped: ...' command text",
-                },
-                "attorney_email": {"type": "string"},
-            },
-            "required": ["command", "attorney_email"],
-        }
-
-    async def execute(self, input: dict[str, Any]) -> ToolResult:
-        command = input.get("command", "").strip()
-        prompt = f"""\
-Parse this Strapped preference command into a JSON object mapping preference
-field names to their new values.
-
-Valid fields: working_hours_start, working_hours_end, buffer_before_minutes,
-buffer_after_minutes, preferred_duration_internal, preferred_duration_client,
-response_tone (formal/friendly/concise), auto_approve_threshold (0-100),
-blackout_dates (list of ISO dates), blocked_times (list like "MWF 12:00-13:00"),
-favorite_locations (list), default_virtual_platform, timezone.
-
-Command: "{command}"
-
-Return ONLY a JSON object like: {{"field_name": "new_value"}}
-If the command is unclear, return: {{"_error": "Could not parse command"}}
-"""
-        return ToolResult(
-            success=True,
-            output=json.dumps({
-                "_strapped_internal": "llm_prompt",
-                "prompt": prompt,
-                "instruction": "Execute this prompt and return the JSON.",
-            }),
-        )
-
-
-class ListAttorneysTool:
-    """List all attorneys with stored preferences."""
-
-    def __init__(self, storage: StrappedTableStorage) -> None:
-        self._storage = storage
-
-    @property
-    def name(self) -> str:
-        return "list_attorneys"
-
-    @property
-    def description(self) -> str:
-        return "List all team member email addresses that have preferences stored."
-
-    @property
-    def input_schema(self) -> dict:
-        return {"type": "object", "properties": {}}
-
-    async def execute(self, input: dict[str, Any]) -> ToolResult:
-        try:
-            attorneys = self._storage.list_attorneys()
-            return ToolResult(
-                success=True,
-                output=json.dumps({"attorneys": attorneys, "count": len(attorneys)}),
-            )
-        except Exception as exc:
             return ToolResult(success=False, error={"message": str(exc)})
