@@ -1,0 +1,47 @@
+name: "daily-digest"
+description: >
+  Generate and send a daily email + calendar digest for a user.
+version: "1.0.0"
+author: "Strapped AI"
+tags: ["digest", "email", "calendar", "strapped"]
+
+context:
+  user_email: ""
+
+steps:
+  - id: "read-emails"
+    type: "agent"
+    agent: "strapped-ai"
+    prompt: |
+      Fetch recent emails for {{user_email}} using `read_emails`.
+      Look back 24 hours.
+    output: "emails_result"
+    timeout: 60
+
+  - id: "read-calendar"
+    type: "agent"
+    agent: "strapped-ai"
+    prompt: |
+      Fetch upcoming calendar events for {{user_email}} using
+      `read_calendar`. Look 3 days ahead.
+    output: "calendar_result"
+    timeout: 60
+
+  - id: "generate-and-send"
+    type: "agent"
+    agent: "strapped-ai"
+    prompt: |
+      Here are the raw emails and calendar events:
+
+      Emails: {{emails_result}}
+      Calendar: {{calendar_result}}
+
+      Generate a clean, scannable digest following your summary format:
+      1. Email summary (urgent / FYI / low priority)
+      2. Calendar summary (today / tomorrow / this week)
+      3. Action items
+
+      Then send it to {{user_email}} using `send_digest` with a subject
+      like "Your Strapped AI Daily Digest".
+    output: "digest_result"
+    timeout: 120

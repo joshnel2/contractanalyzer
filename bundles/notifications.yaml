@@ -1,0 +1,10 @@
+bundle:
+  name: strapped-notifications
+  version: 1.0.0
+  description: Send digest summaries to users via email.
+  tags: ["strapped", "notification", "digest"]
+
+tools:
+  - name: send_digest
+    description: Send a summary digest email to the user
+    module_class: tools.notification_tools.SendDigestTool

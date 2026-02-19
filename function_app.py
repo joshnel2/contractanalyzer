@@ -1,352 +1,203 @@
-import os
+"""Strapped AI Azure Function App — digest generation endpoint.
+
+Provides two HTTP triggers:
+  POST /api/strapped/digest   — generate and send a digest for a user
+  GET  /api/strapped/health   — health check
+
+The web app or a timer trigger calls the digest endpoint to generate
+email + calendar summaries and notify the user.
+"""
+
+from __future__ import annotations
+
+import asyncio
 import json
 import logging
+import traceback
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
 import azure.functions as func
-import requests
+from dotenv import load_dotenv
 
-app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
+load_dotenv()
 
+from core.config import settings
+from core.audit import AuditLogger
+from core.database import init_db
+from core.graph_client import StrappedGraphClient
+from core.table_storage import StrappedTableStorage
 
-def get_ai_config():
-    """
-    Get Azure AI Foundry configuration from environment variables.
-    
-    Expected environment variables:
-    - AZURE_OPENAI_ENDPOINT: Your Azure OpenAI / AI Foundry endpoint
-    - AZURE_OPENAI_API_KEY: Your API key
-    - AZURE_OPENAI_DEPLOYMENT_NAME: Your model deployment name (e.g., gpt-4o, gpt-4o-mini)
-    """
-    endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
-    api_key = os.getenv("AZURE_OPENAI_API_KEY", "")
-    deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "")
-    
-    # Clean up endpoint
-    endpoint = endpoint.rstrip("/")
-    
-    return endpoint, api_key, deployment
+from tools.email_tools import ReadEmailsTool
+from tools.calendar_tools import ReadCalendarTool
+from tools.notification_tools import SendDigestTool
+from tools.preferences_tools import GetPreferencesTool, UpdatePreferencesTool
 
+logging.basicConfig(
+    level=getattr(logging, settings.strapped_log_level, logging.INFO),
+    format="%(asctime)s [%(name)s] %(levelname)s %(message)s",
+)
+logger = logging.getLogger("strapped.function")
 
-def get_api_key_from_request(req: func.HttpRequest) -> str:
-    """
-    Extract API key from request headers.
-    Supports both OpenAI style (Authorization: Bearer) and Azure style (api-key header).
-    Also supports X-API-Key header commonly used by proxies.
-    """
-    # Check Authorization header first (OpenAI style)
-    auth_header = req.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        return auth_header[7:]
-    
-    # Check api-key header (Azure style)
-    api_key = req.headers.get("api-key", "")
-    if api_key:
-        return api_key
-    
-    # Check X-API-Key header (common proxy style)
-    x_api_key = req.headers.get("X-API-Key", "")
-    if x_api_key:
-        return x_api_key
-    
-    return ""
+app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
 
-def create_error_response(message: str, error_type: str, status_code: int) -> func.HttpResponse:
-    """Create a standardized error response in OpenAI format."""
-    error_body = {
-        "error": {
-            "message": message,
-            "type": error_type,
-            "param": None,
-            "code": None
-        }
-    }
-    return func.HttpResponse(
-        json.dumps(error_body),
-        status_code=status_code,
-        mimetype="application/json",
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization, api-key, X-API-Key"
-        }
-    )
+@app.route(route="strapped/digest", methods=["POST"])
+async def digest_endpoint(req: func.HttpRequest) -> func.HttpResponse:
+    """Generate and send an email + calendar digest for a user."""
+    logger.info("Digest endpoint invoked")
 
-
-def get_health_response():
-    """Generate health check response"""
-    endpoint, api_key, deployment = get_ai_config()
-    
-    config_status = {
-        "status": "healthy",
-        "service": "Azure AI Foundry Bridge for Clawdbot",
-        "version": "1.0.0",
-        "endpoint_configured": bool(endpoint),
-        "api_key_configured": bool(api_key),
-        "deployment_configured": bool(deployment),
-        "deployment_name": deployment if deployment else None
-    }
-    
-    return func.HttpResponse(
-        json.dumps(config_status), 
-        mimetype="application/json",
-        headers={
-            "Access-Control-Allow-Origin": "*"
-        }
-    )
-
-
-def cors_preflight():
-    """Return CORS preflight response"""
-    return func.HttpResponse(
-        "",
-        status_code=200,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization, api-key, X-API-Key"
-        }
-    )
-
-
-@app.route(route="", methods=["GET", "OPTIONS"])
-def health_root(req: func.HttpRequest) -> func.HttpResponse:
-    """Health check endpoint at root /"""
-    if req.method == "OPTIONS":
-        return cors_preflight()
-    return get_health_response()
-
-
-@app.route(route="health", methods=["GET", "OPTIONS"])
-def health(req: func.HttpRequest) -> func.HttpResponse:
-    """Health check endpoint at /health"""
-    if req.method == "OPTIONS":
-        return cors_preflight()
-    return get_health_response()
-
-
-@app.route(route="v1/chat/completions", methods=["POST", "OPTIONS"])
-def chat_completions(req: func.HttpRequest) -> func.HttpResponse:
-    """
-    OpenAI-compatible chat completions endpoint.
-    Proxies requests to Azure AI Foundry.
-    
-    This endpoint is compatible with Clawdbot's OpenAI provider format.
-    Configure Clawdbot with:
-    - baseUrl: https://your-function-app.azurewebsites.net/v1
-    - apiKey: any-value (authentication handled by the bridge)
-    - api: openai-completions
-    """
-    # Handle CORS preflight
-    if req.method == "OPTIONS":
-        return cors_preflight()
-    
-    logging.info("Clawdbot chat completions request received")
-    
-    endpoint, api_key, deployment = get_ai_config()
-    
-    # Check configuration
-    if not endpoint:
-        logging.error("AZURE_OPENAI_ENDPOINT not configured")
-        return create_error_response(
-            "Server not configured: AZURE_OPENAI_ENDPOINT missing",
-            "configuration_error",
-            500
-        )
-    
-    if not api_key:
-        logging.error("AZURE_OPENAI_API_KEY not configured")
-        return create_error_response(
-            "Server not configured: AZURE_OPENAI_API_KEY missing",
-            "configuration_error",
-            500
-        )
-    
-    if not deployment:
-        logging.error("AZURE_OPENAI_DEPLOYMENT_NAME not configured")
-        return create_error_response(
-            "Server not configured: AZURE_OPENAI_DEPLOYMENT_NAME missing",
-            "configuration_error",
-            500
-        )
-    
-    # Parse request body
     try:
         body = req.get_json()
-    except ValueError as e:
-        logging.error(f"Invalid JSON in request: {e}")
-        return create_error_response(
-            "Invalid JSON in request body",
-            "invalid_request_error",
-            400
+    except ValueError:
+        return func.HttpResponse(
+            json.dumps({"error": "Invalid JSON — provide {\"user_email\": \"...\"}"}),
+            status_code=400,
+            mimetype="application/json",
         )
-    
-    # Log the incoming request model for debugging
-    incoming_model = body.get("model", "not specified")
-    logging.info(f"Incoming model request: {incoming_model}")
-    
-    # Disable streaming - Azure Functions HTTP doesn't support true streaming
-    # Moltbot will fall back to non-streaming mode
-    body["stream"] = False
-    
-    # Remove model from body - we use deployment name instead
-    # The deployment name IS the model in Azure OpenAI
-    body.pop("model", None)
-    
-    # Build Azure AI Foundry URL
-    api_version = os.getenv("AZURE_AI_API_VERSION", "2024-08-01-preview")
-    url = f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_version}"
-    
-    logging.info(f"Proxying to Azure AI Foundry deployment: {deployment}")
-    
-    # Set headers for Azure AI Foundry
-    headers = {
-        "Content-Type": "application/json",
-        "api-key": api_key
-    }
-    
+
+    user_email = body.get("user_email", "")
+    if not user_email:
+        return func.HttpResponse(
+            json.dumps({"error": "user_email is required"}),
+            status_code=400,
+            mimetype="application/json",
+        )
+
     try:
-        resp = requests.post(url, headers=headers, json=body, timeout=300)
-        
-        logging.info(f"Azure AI Foundry response status: {resp.status_code}")
-        
-        if resp.status_code != 200:
-            logging.error(f"Azure AI Foundry error: {resp.text}")
-            # Try to forward the error as-is if it's valid JSON
-            try:
-                error_json = resp.json()
-                return func.HttpResponse(
-                    json.dumps(error_json),
-                    status_code=resp.status_code,
-                    mimetype="application/json",
-                    headers={"Access-Control-Allow-Origin": "*"}
-                )
-            except:
-                return create_error_response(
-                    f"Azure AI Foundry error: {resp.text}",
-                    "api_error",
-                    resp.status_code
-                )
-        
-        # Parse successful response and convert to pure OpenAI format
-        try:
-            response_json = resp.json()
-            
-            # Convert Azure response to clean OpenAI format
-            openai_response = {
-                "id": response_json.get("id", "chatcmpl-" + os.urandom(12).hex()),
-                "object": "chat.completion",
-                "created": response_json.get("created", int(__import__('time').time())),
-                "model": incoming_model or deployment,
-                "choices": [],
-                "usage": response_json.get("usage", {})
-            }
-            
-            # Clean up choices - remove Azure-specific fields
-            for choice in response_json.get("choices", []):
-                clean_choice = {
-                    "index": choice.get("index", 0),
-                    "message": {
-                        "role": choice.get("message", {}).get("role", "assistant"),
-                        "content": choice.get("message", {}).get("content", "")
-                    },
-                    "finish_reason": choice.get("finish_reason", "stop")
-                }
-                openai_response["choices"].append(clean_choice)
-            
-            return func.HttpResponse(
-                json.dumps(openai_response),
-                status_code=200,
-                mimetype="application/json",
-                headers={"Access-Control-Allow-Origin": "*"}
-            )
-        except Exception as e:
-            logging.error(f"Error parsing response: {e}")
-            # If response isn't JSON, return as-is
-            return func.HttpResponse(
-                resp.text,
-                status_code=resp.status_code,
-                mimetype="application/json",
-                headers={"Access-Control-Allow-Origin": "*"}
-            )
-        
-    except requests.exceptions.Timeout:
-        logging.error("Request to Azure AI Foundry timed out")
-        return create_error_response(
-            "Request to Azure AI Foundry timed out after 300 seconds",
-            "timeout_error",
-            504
+        result = await _generate_digest(user_email)
+        return func.HttpResponse(
+            json.dumps(result, default=str),
+            status_code=200,
+            mimetype="application/json",
         )
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Request to Azure AI Foundry failed: {e}")
-        return create_error_response(
-            f"Failed to connect to Azure AI Foundry: {str(e)}",
-            "connection_error",
-            502
+    except Exception:
+        logger.exception("Digest generation failed for %s", user_email)
+        return func.HttpResponse(
+            json.dumps({"error": "Digest generation failed", "trace": traceback.format_exc()}),
+            status_code=500,
+            mimetype="application/json",
         )
 
 
-@app.route(route="chat/completions", methods=["POST", "OPTIONS"])
-def chat_completions_alt(req: func.HttpRequest) -> func.HttpResponse:
-    """Alternative endpoint without v1 prefix for compatibility"""
-    return chat_completions(req)
-
-
-@app.route(route="v1/models", methods=["GET", "OPTIONS"])
-def list_models(req: func.HttpRequest) -> func.HttpResponse:
-    """
-    OpenAI-compatible models list endpoint.
-    Returns the configured deployment as an available model.
-    
-    Clawdbot uses this to discover available models.
-    """
-    if req.method == "OPTIONS":
-        return cors_preflight()
-    
-    _, _, deployment = get_ai_config()
-    
-    # Return the deployment as an available model
-    model_id = deployment or "gpt-4o"
-    
-    models_response = {
-        "object": "list",
-        "data": [
-            {
-                "id": model_id,
-                "object": "model",
-                "created": 1700000000,
-                "owned_by": "azure-ai-foundry",
-                "permission": [],
-                "root": model_id,
-                "parent": None
-            }
-        ]
-    }
-    
+@app.route(route="strapped/health", methods=["GET"])
+async def health_check(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse(
-        json.dumps(models_response),
+        json.dumps({"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}),
+        status_code=200,
         mimetype="application/json",
-        headers={"Access-Control-Allow-Origin": "*"}
     )
 
 
-@app.route(route="models", methods=["GET", "OPTIONS"])
-def list_models_alt(req: func.HttpRequest) -> func.HttpResponse:
-    """Alternative models endpoint without v1 prefix"""
-    return list_models(req)
+async def _generate_digest(user_email: str) -> dict[str, Any]:
+    """Read emails + calendar, run the Amplifier session, send the digest."""
+
+    init_db()
+    storage = StrappedTableStorage()
+    graph = StrappedGraphClient()
+    audit = AuditLogger(storage)
+
+    audit.log(user_email, "digest_requested")
+
+    session = await _build_session(storage, graph)
+
+    prompt = f"""\
+Generate a daily digest for {user_email}.
+
+1. Use `read_emails` to fetch their recent emails (last 24 hours).
+2. Use `read_calendar` to fetch their upcoming events (next 3 days).
+3. Summarise everything following your digest format:
+   - Email summary (urgent / FYI / low priority)
+   - Calendar summary (today / tomorrow / this week)
+   - Action items
+4. Use `send_digest` to email the summary to {user_email}.
+
+The Strapped shared mailbox is: {settings.strapped_mailbox}
+"""
+
+    try:
+        async with session:
+            response = await session.execute(prompt)
+    except Exception:
+        logger.exception("Amplifier session failed")
+        audit.log(user_email, "digest_error", outcome="error")
+        raise
+
+    audit.log(user_email, "digest_sent", outcome="sent")
+
+    return {
+        "status": "digest_sent",
+        "user_email": user_email,
+        "response_preview": response[:500],
+    }
 
 
-@app.route(route="v1/completions", methods=["POST", "OPTIONS"])
-def completions(req: func.HttpRequest) -> func.HttpResponse:
-    """
-    Legacy completions endpoint (non-chat).
-    Most modern models don't support this, but included for completeness.
-    """
-    if req.method == "OPTIONS":
-        return cors_preflight()
-    
-    # Most Azure OpenAI deployments only support chat completions
-    return create_error_response(
-        "This endpoint only supports chat completions. Use /v1/chat/completions instead.",
-        "invalid_request_error",
-        400
+async def _build_session(
+    storage: StrappedTableStorage,
+    graph: StrappedGraphClient,
+) -> Any:
+    """Build an Amplifier session with the digest tools."""
+    from amplifier_core import AmplifierSession
+    from amplifier_foundation import Bundle, load_bundle
+
+    foundation_source = "git+https://github.com/microsoft/amplifier-foundation@main"
+    foundation = await load_bundle(foundation_source)
+
+    provider_bundle = Bundle(
+        name="provider-azure-openai",
+        version="1.0.0",
+        providers=[{
+            "module": "provider-openai",
+            "source": "git+https://github.com/microsoft/amplifier-module-provider-openai@main",
+            "config": {
+                "api_type": "azure",
+                "azure_endpoint": settings.azure_openai_endpoint,
+                "api_key": settings.azure_openai_api_key,
+                "default_model": settings.azure_openai_deployment_name,
+                "api_version": "2024-12-01-preview",
+            },
+        }],
     )
+
+    agent_md = Path(__file__).parent / "agents" / "strapped_ai.md"
+    agent_instruction = ""
+    if agent_md.exists():
+        raw = agent_md.read_text()
+        if raw.startswith("---"):
+            parts = raw.split("---", 2)
+            agent_instruction = parts[2].strip() if len(parts) > 2 else raw
+        else:
+            agent_instruction = raw
+
+    app_bundle = Bundle(
+        name="strapped-ai",
+        version="1.0.0",
+        instruction=agent_instruction,
+        session={
+            "orchestrator": {
+                "module": "loop-basic",
+                "source": "git+https://github.com/microsoft/amplifier-module-loop-basic@main",
+                "config": {"max_iterations": 10},
+            },
+            "context": {
+                "module": "context-simple",
+                "source": "git+https://github.com/microsoft/amplifier-module-context-simple@main",
+                "config": {"max_tokens": 128000},
+            },
+        },
+    )
+
+    composed = foundation.compose(provider_bundle).compose(app_bundle)
+    prepared = await composed.prepare()
+    session = await prepared.create_session(session_cwd=Path.cwd())
+
+    coordinator = session.coordinator
+    await coordinator.mount("tools", ReadEmailsTool(graph), name="read_emails")
+    await coordinator.mount("tools", ReadCalendarTool(graph), name="read_calendar")
+    await coordinator.mount("tools", SendDigestTool(graph, settings.strapped_mailbox), name="send_digest")
+    await coordinator.mount("tools", GetPreferencesTool(storage), name="get_preferences")
+    await coordinator.mount("tools", UpdatePreferencesTool(storage), name="update_preferences")
+
+    logger.info("Amplifier session built with 5 tools")
+    return session

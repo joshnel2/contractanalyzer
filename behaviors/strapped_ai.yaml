@@ -1,0 +1,10 @@
+bundle:
+  name: strapped-ai-behavior
+  version: 1.0.0
+  description: >
+    Core Strapped AI behavior bundle — wires up the agent profile
+    and all domain context for the scheduling assistant.
+
+agents:
+  include:
+    - strapped-ai:agents/strapped_ai

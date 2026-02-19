@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Strapped AI — Your AI Scheduling Assistant{% endblock %}
+
+{% block content %}
+
+<!-- ── Hero ─────────────────────────────────────────────────────────────── -->
+<section class="relative overflow-hidden">
+  <div class="absolute inset-0 bg-gradient-to-br from-brand-50 via-white to-purple-50"></div>
+  <div class="absolute top-20 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-brand-200/20 rounded-full blur-3xl"></div>
+
+  <div class="relative max-w-5xl mx-auto px-6 pt-24 pb-20 text-center">
+    <div class="inline-flex items-center gap-2 px-4 py-1.5 mb-6 rounded-full bg-brand-100 text-brand-700 text-xs font-semibold tracking-wide uppercase">
+      AI-Powered Scheduling
+    </div>
+    <h1 class="text-5xl md:text-7xl font-extrabold leading-tight tracking-tight">
+      Your inbox, <span class="gradient-text">summarised.</span>
+    </h1>
+    <p class="mt-6 text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
+      Strapped AI reads your emails and calendar, then sends you a clean
+      daily digest with what matters &mdash; urgent items, upcoming meetings,
+      and action items. So you never miss a beat.
+    </p>
+    <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+      <a href="/book-demo" class="inline-flex items-center px-8 py-3.5 rounded-xl bg-brand text-white text-base font-semibold hover:bg-brand-700 transition shadow-lg shadow-brand/25">
+        Book a Demo
+        <svg class="ml-2 w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+      </a>
+      <a href="#how-it-works" class="inline-flex items-center px-8 py-3.5 rounded-xl bg-white text-gray-700 text-base font-semibold border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition">
+        See How It Works
+      </a>
+    </div>
+
+    <!-- Mock UI -->
+    <div class="mt-16 mx-auto max-w-3xl glow rounded-2xl border border-gray-200 bg-white p-1">
+      <div class="rounded-xl bg-gray-50 p-6 text-left">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-3 h-3 rounded-full bg-red-400"></div>
+          <div class="w-3 h-3 rounded-full bg-yellow-400"></div>
+          <div class="w-3 h-3 rounded-full bg-green-400"></div>
+          <span class="ml-2 text-xs text-gray-400 font-mono">strapped@yourcompany.com</span>
+        </div>
+        <div class="space-y-3 text-sm">
+          <div class="bg-brand-50 rounded-lg p-4 border border-brand-100">
+            <p class="text-brand-600 text-xs mb-1 font-semibold">Your Daily Digest — Strapped AI</p>
+            <p class="text-gray-700 font-medium mb-2">Good morning! Here's what needs your attention:</p>
+            <p class="text-gray-600 text-xs font-semibold uppercase tracking-wide mt-2 mb-1">Urgent</p>
+            <ul class="space-y-1 text-gray-600 text-sm">
+              <li>&#x2022; <strong>Sarah Chen</strong> — Q1 strategy review (awaiting your reply)</li>
+              <li>&#x2022; <strong>Legal team</strong> — Contract deadline tomorrow</li>
+            </ul>
+            <p class="text-gray-600 text-xs font-semibold uppercase tracking-wide mt-3 mb-1">Today's Schedule</p>
+            <ul class="space-y-1 text-gray-600 text-sm">
+              <li>&#x2022; 10:00 AM — Team standup (30 min)</li>
+              <li>&#x2022; 2:00 PM — Client review with Acme Corp</li>
+            </ul>
+            <p class="text-gray-600 text-xs font-semibold uppercase tracking-wide mt-3 mb-1">Action Items</p>
+            <ul class="space-y-1 text-gray-600 text-sm">
+              <li>&#x2022; Reply to Sarah about available times</li>
+              <li>&#x2022; Prep slides for the 2 PM client review</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Logos / Social Proof ─────────────────────────────────────────────── -->
+<section class="py-12 border-y border-gray-100 bg-gray-50/50">
+  <div class="max-w-5xl mx-auto px-6 text-center">
+    <p class="text-xs uppercase tracking-widest text-gray-400 font-semibold mb-6">Trusted by teams that move fast</p>
+    <div class="flex flex-wrap items-center justify-center gap-x-12 gap-y-4 opacity-40">
+      <span class="text-2xl font-bold text-gray-900">LegalCo</span>
+      <span class="text-2xl font-bold text-gray-900">Vertex&Partners</span>
+      <span class="text-2xl font-bold text-gray-900">Ridgeline</span>
+      <span class="text-2xl font-bold text-gray-900">Apex&amp;Moore</span>
+      <span class="text-2xl font-bold text-gray-900">Northwind</span>
+    </div>
+  </div>
+</section>
+
+<!-- ── Features ─────────────────────────────────────────────────────────── -->
+<section id="features" class="py-24">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <h2 class="text-3xl md:text-4xl font-bold">Everything your calendar needs. <span class="gradient-text">Nothing it doesn't.</span></h2>
+      <p class="mt-4 text-lg text-gray-500 max-w-2xl mx-auto">Strapped AI plugs into your Microsoft 365 and handles the scheduling chaos so your team can focus on real work.</p>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-8">
+      {% for feature in [
+        {"icon": "📧", "title": "Email Summaries", "desc": "We read your inbox and surface what matters — urgent items first, FYIs second, noise filtered out."},
+        {"icon": "📅", "title": "Calendar Digests", "desc": "See your day at a glance. Upcoming meetings, prep needed, and schedule conflicts — all in one view."},
+        {"icon": "✅", "title": "Action Items", "desc": "We pull action items from your emails and meetings so nothing falls through the cracks."},
+        {"icon": "🔒", "title": "Private & Secure", "desc": "Everything stays in your Azure tenant. No data leaves your environment. Full audit trail on every action."},
+        {"icon": "⚡", "title": "Daily Notifications", "desc": "Get a clean digest delivered to your inbox every morning. Or trigger one on demand from the dashboard."},
+        {"icon": "🎯", "title": "Configurable", "desc": "Set your working hours, preferred tone, and notification preferences. Strapped adapts to you."}
+      ] %}
+      <div class="card-hover rounded-2xl border border-gray-100 bg-white p-8">
+        <div class="text-3xl mb-4">{{ feature.icon }}</div>
+        <h3 class="text-lg font-bold mb-2">{{ feature.title }}</h3>
+        <p class="text-gray-500 text-sm leading-relaxed">{{ feature.desc }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- ── How It Works ─────────────────────────────────────────────────────── -->
+<section id="how-it-works" class="py-24 bg-gray-50">
+  <div class="max-w-5xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <h2 class="text-3xl md:text-4xl font-bold">Three steps. <span class="gradient-text">Zero effort.</span></h2>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-12">
+      {% for step in [
+        {"num": "01", "title": "Connect Your Account", "desc": "Sign up and connect your Microsoft 365 account. We get read access to your email and calendar — that's it."},
+        {"num": "02", "title": "We Read Everything", "desc": "Strapped AI scans your inbox and calendar every day, identifying what's urgent, what needs action, and what's coming up."},
+        {"num": "03", "title": "You Get the Digest", "desc": "A clean, scannable summary lands in your inbox. Urgent emails, today's meetings, and action items — all in two minutes."}
+      ] %}
+      <div class="text-center">
+        <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand text-white text-xl font-bold mb-4">{{ step.num }}</div>
+        <h3 class="text-lg font-bold mb-2">{{ step.title }}</h3>
+        <p class="text-gray-500 text-sm leading-relaxed">{{ step.desc }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ──────────────────────────────────────────────────────────────── -->
+<section class="py-24">
+  <div class="max-w-3xl mx-auto px-6 text-center">
+    <h2 class="text-3xl md:text-4xl font-bold mb-4">Ready to actually know what's going on?</h2>
+    <p class="text-lg text-gray-500 mb-8">Book a 15-minute demo and see how Strapped AI turns inbox chaos into a clear daily briefing.</p>
+    <a href="/book-demo" class="inline-flex items-center px-8 py-4 rounded-xl bg-brand text-white text-lg font-semibold hover:bg-brand-700 transition shadow-lg shadow-brand/25">
+      Book a Demo
+      <svg class="ml-2 w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+    </a>
+  </div>
+</section>
+
+{% endblock %}

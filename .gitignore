@@ -1,22 +1,51 @@
-# Byte-compiled
+# Python
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
 
-# Virtual environment
+# Virtual environments
 .venv/
 venv/
-
-# Local settings (contains secrets)
-local.settings.json
-
-# Azure Functions
-.python_packages/
-.funcignore
+env/
 
 # IDE
-.idea/
 .vscode/
+.idea/
 *.swp
+*.swo
+*~
 
-# macOS
+# Azure Functions
+local.settings.json
+.python_packages/
+.func/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Amplifier cache
+.amplifier/cache/
+
+# Streamlit
+.streamlit/secrets.toml

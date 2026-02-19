@@ -1,0 +1,10 @@
+bundle:
+  name: strapped-email-reader
+  version: 1.0.0
+  description: Read and summarise emails from Microsoft 365.
+  tags: ["strapped", "email", "reader"]
+
+tools:
+  - name: read_emails
+    description: Fetch recent emails from a user's inbox
+    module_class: tools.email_tools.ReadEmailsTool
